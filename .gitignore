@@ -1,0 +1,82 @@
+﻿# ============================================================
+# AR-cards V1 - Root Git Ignore
+# ============================================================
+
+# ----------------------------
+# Android / Gradle
+# ----------------------------
+.gradle/
+**/.gradle/
+build/
+**/build/
+local.properties
+*.apk
+*.aab
+*.apks
+*.dm
+
+# Android Studio / IntelliJ
+.idea/
+**/.idea/
+*.iml
+*.iws
+*.ipr
+
+# Kotlin
+.kotlin/
+**/.kotlin/
+
+# ----------------------------
+# Signing / secrets
+# ----------------------------
+keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+
+.env
+.env.*
+!.env.example
+
+# ----------------------------
+# Python
+# ----------------------------
+.venv/
+venv/
+env/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# ----------------------------
+# Server debug / logs
+# ----------------------------
+*.log
+debug_frames/
+
+# ----------------------------
+# Archives / temporary files
+# ----------------------------
+*.zip
+*.7z
+*.rar
+*.tmp
+*.bak
+
+# ----------------------------
+# OS
+# ----------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----------------------------
+# IDE / tooling
+# ----------------------------
+.vscode/
+.cagent/
+.codex/
+
+# added by release_v1.ps1
+dist/

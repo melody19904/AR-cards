@@ -1,0 +1,1404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>CARD VISION</title>
+
+  <style>
+    :root {
+      --bg: #0A0A0A;
+      --surface: #141414;
+      --surface-2: #1F1F1F;
+      --gold: #D4AF37;
+      --green: #22FF88;
+      --text: #F5F5F5;
+      --muted: #888888;
+      --muted-2: #666666;
+      --danger: #FF4D5A;
+      --nav-height: 64px;
+      --ease: cubic-bezier(0.2, 0, 0, 1);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%; height: 100%; margin: 0; padding: 0;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: transparent;
+      font-feature-settings: "ss01" 1;
+    }
+    body { position: relative; min-height: 100%; overscroll-behavior: none; }
+    button, input { font: inherit; }
+    button { border: 0; outline: 0; cursor: pointer; color: inherit; }
+    input { outline: none; }
+    #app { position: relative; width: 100%; height: 100%; overflow: hidden; }
+    .screen {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      overflow: hidden; visibility: hidden; opacity: 0;
+      transform: translateX(100%);
+      transition: transform 250ms var(--ease), opacity 250ms var(--ease),
+                  visibility 0s linear 250ms;
+      background: var(--bg);
+    }
+    .screen.active {
+      visibility: visible; opacity: 1; transform: translateX(0);
+      transition: transform 250ms var(--ease), opacity 250ms var(--ease), visibility 0s;
+    }
+    .screen.previous { transform: translateX(-18%); opacity: 0.55; visibility: visible; }
+    #screen-scan { background: transparent; }
+    .screen-scroll {
+      width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden;
+      padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 24px);
+      -webkit-overflow-scrolling: touch;
+    }
+    .topbar {
+      position: relative; z-index: 10;
+      height: calc(68px + env(safe-area-inset-top));
+      padding: env(safe-area-inset-top) 16px 0;
+      display: flex; align-items: flex-end; padding-bottom: 12px;
+      background: rgba(10, 10, 10, 0.96);
+    }
+    #screen-scan .topbar { background: transparent; }
+    .topbar-inner {
+      width: 100%; height: 44px;
+      display: grid; grid-template-columns: 44px 1fr 44px; align-items: center;
+    }
+    .topbar-title {
+      margin: 0; text-align: center; font-size: 20px; line-height: 1;
+      font-weight: 700; letter-spacing: -0.02em;
+    }
+    .icon-button {
+      width: 44px; height: 44px; border-radius: 14px;
+      display: grid; place-items: center;
+      background: rgba(255, 255, 255, 0.05); color: white;
+      transition: transform 160ms ease, background 160ms ease;
+    }
+    #screen-scan .icon-button { background: rgba(0, 0, 0, 0.32); }
+    .icon-button:active { transform: scale(0.92); background: rgba(255, 255, 255, 0.1); }
+    .icon { width: 22px; height: 22px; display: block; }
+    .home-content {
+      min-height: 100%;
+      padding: calc(env(safe-area-inset-top) + 42px) 24px
+               calc(var(--nav-height) + env(safe-area-inset-bottom) + 32px);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .brand {
+      margin: 0 0 18px; color: var(--gold);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(42px, 11vw, 72px); line-height: 0.95;
+      letter-spacing: -0.055em; text-align: center;
+      text-shadow: 0 8px 32px rgba(212, 175, 55, 0.12);
+    }
+    .brand-subtitle {
+      margin: 0 0 52px; color: rgba(255, 255, 255, 0.5);
+      font-size: 12px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase;
+    }
+    .home-actions {
+      width: 100%; max-width: 420px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .primary-button, .secondary-button {
+      width: 100%; min-height: 58px; border-radius: 14px; padding: 0 22px;
+      font-size: 14px; font-weight: 800; letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+    .primary-button {
+      color: #06150D; background: var(--green);
+      box-shadow: 0 12px 36px rgba(34, 255, 136, 0.15), inset 0 1px rgba(255, 255, 255, 0.4);
+    }
+    .secondary-button {
+      color: var(--gold); background: var(--surface);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+    }
+    .primary-button:active, .secondary-button:active { transform: scale(0.97); }
+    .server-status {
+      margin-top: 52px; display: flex; align-items: center; gap: 8px;
+      color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.18em;
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted-2); box-shadow: 0 0 0 4px rgba(102, 102, 102, 0.08);
+    }
+    .status-dot.online { background: var(--green); box-shadow: 0 0 0 4px rgba(34, 255, 136, 0.08); }
+    .status-dot.offline { background: #FF4D5A; box-shadow: 0 0 0 4px rgba(255, 77, 90, 0.08); }
+    .home-footer {
+      position: absolute; left: 0; right: 0;
+      bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 20px);
+      display: flex; justify-content: center;
+    }
+    .scan-screen { background: transparent; }
+    .scan-topbar { position: absolute; inset: 0 0 auto 0; }
+    .vault-header {
+      padding: 20px 16px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .vault-heading {
+      margin: 0; font-family: Georgia, "Times New Roman", serif;
+      font-size: 30px; letter-spacing: -0.035em;
+    }
+    .count-badge {
+      padding: 8px 12px; border-radius: 999px;
+      color: var(--gold); background: rgba(212, 175, 55, 0.1);
+      font-size: 11px; font-weight: 800; white-space: nowrap;
+    }
+    .vault-grid {
+      padding: 0 14px 30px;
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;
+    }
+    .card-tile {
+      position: relative;
+      min-width: 0;
+      min-height: 260px;
+      overflow: hidden;
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      background: #141414;
+      border: 2px solid #2B2B2B;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-tile.unlocked {
+      border: 2px solid var(--gold);
+      box-shadow: 0 8px 24px rgba(212, 175, 55, 0.15);
+    }
+
+    .card-art-wrap {
+      width: 100%;
+      flex: 1;
+      min-height: 160px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F5F5F5; /* CRITICAL FIX: Changed from #000 to off-white so transparent art is visible! */
+      border: 2px solid var(--gold);
+      border-radius: 4px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+
+    .card-art {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .card-name {
+      color: white;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 15px;
+      font-weight: 700;
+      text-align: center;
+      margin: 0 0 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .rarity-chip {
+      align-self: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: rgba(0, 0, 0, 0.48);
+      border: 1px solid currentColor;
+    }
+    .empty-state {
+      min-height: calc(100vh - 180px - var(--nav-height) - env(safe-area-inset-bottom));
+      padding: 40px 32px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center;
+    }
+    .ghost-card { width: 84px; height: 116px; margin-bottom: 24px; color: #333; }
+    .empty-title { margin: 0 0 8px; font-size: 17px; font-weight: 700; }
+    .empty-text { max-width: 280px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .settings-content { padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 28px); }
+    .settings-section { padding: 22px 16px 0; }
+    .section-label {
+      margin: 0 0 12px; color: var(--gold);
+      font-size: 11px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase;
+    }
+    .settings-card {
+      padding: 16px; border-radius: 20px; background: var(--surface);
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.24), inset 0 1px rgba(255, 255, 255, 0.02);
+    }
+    .url-input {
+      width: 100%; height: 50px; padding: 0 14px;
+      border: 1px solid #2B2B2B; border-radius: 12px;
+      color: white; background: #0E0E0E; font-size: 14px;
+    }
+    .url-input:focus { border-color: rgba(212, 175, 55, 0.65); }
+    .settings-actions {
+      margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .small-button {
+      min-height: 46px; padding: 0 12px; border-radius: 12px;
+      color: white; background: var(--surface-2);
+      font-size: 12px; font-weight: 800; letter-spacing: 0.04em;
+    }
+    .small-button.gold { color: #0A0A0A; background: var(--gold); }
+    .small-button:active { transform: scale(0.97); }
+    .connection-result {
+      min-height: 18px; margin-top: 12px;
+      color: var(--muted); font-size: 12px; line-height: 1.4;
+    }
+    .connection-result.success { color: var(--green); }
+    .connection-result.failure { color: var(--danger); }
+    .about-row {
+      display: flex; align-items: center; justify-content: space-between;
+      color: var(--muted); font-size: 13px;
+    }
+    .about-version { color: white; font-weight: 700; }
+    .danger-card {
+      background: rgba(255, 77, 90, 0.055);
+      border: 1px solid rgba(255, 77, 90, 0.12);
+    }
+    .danger-button {
+      width: 100%; min-height: 48px; border-radius: 12px;
+      color: #FF6872; background: rgba(255, 77, 90, 0.1);
+      font-size: 12px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .bottom-nav {
+      position: fixed; z-index: 100; left: 0; right: 0; bottom: 0;
+      height: calc(var(--nav-height) + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      background: rgba(10, 10, 10, 0.98); border-top: 1px solid #1F1F1F;
+      transition: opacity 220ms var(--ease), transform 220ms var(--ease);
+    }
+    .bottom-nav.hidden {
+      opacity: 0; transform: translateY(100%); pointer-events: none;
+    }
+    .nav-indicator {
+      position: absolute; top: 6px; left: 0;
+      width: calc(100% / 3); height: 3px; border-radius: 999px;
+      background: var(--gold); box-shadow: 0 0 10px rgba(212, 175, 55, 0.5);
+      transform: translateX(0);
+      transition: transform 280ms var(--ease);
+      pointer-events: none;
+    }
+    .nav-button {
+      position: relative; height: var(--nav-height);
+      display: grid; place-items: center;
+      color: #666; background: transparent;
+      transition: color 200ms var(--ease), transform 160ms var(--ease);
+    }
+    .nav-button.active { color: var(--gold); }
+    .nav-button.active .nav-icon { transform: translateY(-1px) scale(1.06); }
+    .nav-button:active { transform: scale(0.9); }
+    .nav-icon { width: 24px; height: 24px; transition: transform 220ms var(--ease); }
+    .demo-badge {
+      position: fixed; z-index: 1000;
+      top: calc(env(safe-area-inset-top) + 10px); right: 10px;
+      padding: 5px 8px; border-radius: 999px;
+      color: #0A0A0A; background: var(--gold);
+      font-size: 9px; font-weight: 950; letter-spacing: 0.12em;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+    }
+    .toast {
+      position: fixed; z-index: 900; left: 50%;
+      bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 18px);
+      max-width: calc(100% - 32px);
+      padding: 11px 15px; border-radius: 12px;
+      color: white; background: #242424;
+      box-shadow: 0 14px 35px rgba(0, 0, 0, 0.45);
+      font-size: 12px; font-weight: 700; text-align: center;
+      opacity: 0; pointer-events: none;
+      transform: translate(-50%, 12px) scale(0.96);
+      transition: opacity 220ms var(--ease), transform 220ms var(--ease);
+    }
+    .toast.visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    .rarity-common { color: #9CA3AF; }
+    .rarity-uncommon { color: #22FF88; }
+    .rarity-rare { color: #60A5FA; }
+    .rarity-epic { color: #A78BFA; }
+    .rarity-legendary { color: #FBBF24; }
+    .rarity-prototype { color: #F97316; }
+
+    @media (min-width: 700px) {
+      .home-actions { max-width: 430px; }
+      .vault-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .screen, .toast, .bottom-nav, .primary-button, .secondary-button,
+      .icon-button, .nav-button, .nav-indicator, .nav-icon { transition: none !important; }
+      .card-tile { animation: none !important; opacity: 1 !important; transform: none !important; }
+    }
+    .trade-modal {
+      position: fixed; inset: 0; z-index: 60;
+      background: rgba(0, 0, 0, 0.72);
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+    }
+    .trade-modal[hidden] { display: none; }
+    .trade-modal-card {
+      position: relative;
+      width: 100%; max-width: 320px;
+      background: var(--surface);
+      border: 2px solid var(--gold);
+      border-radius: 16px;
+      padding: 28px 20px 20px;
+      text-align: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    }
+    .trade-modal-close {
+      position: absolute; top: 8px; right: 8px;
+    }
+    .trade-modal-title {
+      margin: 0 0 16px;
+      font-size: 16px;
+      color: var(--text);
+      padding-right: 28px;
+    }
+    .trade-modal-qr-wrap {
+      background: #fff;
+      border-radius: 10px;
+      padding: 14px;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 200px;
+    }
+    .trade-modal-qr-wrap.loading { opacity: 0.5; }
+    .trade-modal-qr { width: 100%; max-width: 220px; height: auto; display: block; }
+    .trade-modal-hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+      margin: 16px 0 18px;
+    }
+  </style>
+</head>
+
+<body>
+<div id="app">
+
+  <section id="screen-home" class="screen active">
+    <div class="home-content">
+      <h1 class="brand">CARD<br>VISION</h1>
+      <p class="brand-subtitle">AR Card Collection</p>
+      <div class="home-actions">
+        <button id="scanCta" class="primary-button" type="button" aria-label="Scan a card">
+          Scan a Card
+        </button>
+        <button id="vaultCta" class="secondary-button" type="button" aria-label="Open my vault">
+          My Vault
+        </button>
+      </div>
+      <div class="home-footer">
+        <div class="server-status" id="homeServerStatus">
+          <span class="status-dot"></span>
+          <span>UNKNOWN</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-scan" class="screen scan-screen">
+    <header class="topbar scan-topbar">
+      <div class="topbar-inner">
+        <button id="scanBack" class="icon-button" type="button" aria-label="Back">
+          <svg class="icon" viewBox="0 0 24 24" fill="none">
+            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <h2 class="topbar-title">Scan</h2>
+        <button id="flashButton" class="icon-button" type="button" aria-label="Toggle flashlight">
+          <svg class="icon" viewBox="0 0 24 24" fill="none">
+            <path d="M9 2H15L14 8H18L8 22L10 12H6L9 2Z"
+                  stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+  </section>
+
+  <section id="screen-vault" class="screen">
+    <div class="screen-scroll">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <button id="vaultBack" class="icon-button" type="button" aria-label="Back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none">
+              <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <h2 class="topbar-title">My Vault</h2>
+          <div></div>
+        </div>
+      </header>
+      <div class="vault-header">
+        <h1 class="vault-heading">Collection</h1>
+        <div id="vaultCount" class="count-badge">0 cards</div>
+      </div>
+      <div id="vaultGrid" class="vault-grid"></div>
+      <div id="emptyVault" class="empty-state" hidden>
+        <svg class="ghost-card" viewBox="0 0 84 116" fill="none">
+          <rect x="9" y="5" width="66" height="106" rx="11" stroke="currentColor" stroke-width="3"/>
+          <rect x="19" y="17" width="46" height="57" rx="7" stroke="currentColor"
+                stroke-width="2" stroke-dasharray="4 5"/>
+          <path d="M25 91H59" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        </svg>
+        <h3 class="empty-title">No cards yet</h3>
+        <p class="empty-text">Scan one to start your collection.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-settings" class="screen">
+    <div class="screen-scroll settings-content">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <button id="settingsBack" class="icon-button" type="button" aria-label="Back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none">
+              <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <h2 class="topbar-title">Settings</h2>
+          <div></div>
+        </div>
+      </header>
+      <section class="settings-section">
+        <h3 class="section-label">Server</h3>
+        <div class="settings-card">
+          <input id="serverUrl" class="url-input" type="url" inputmode="url"
+                 autocomplete="off" spellcheck="false"
+                 placeholder="https://server.example.com" aria-label="Server URL">
+          <div class="settings-actions">
+            <button id="saveServer" class="small-button gold" type="button">Save</button>
+            <button id="testServer" class="small-button" type="button">Test Connection</button>
+          </div>
+          <div id="connectionResult" class="connection-result" aria-live="polite"></div>
+        </div>
+      </section>
+      <section class="settings-section">
+        <h3 class="section-label">About</h3>
+        <div class="settings-card">
+          <div class="about-row">
+            <span>App version</span>
+            <span class="about-version">1.0.0</span>
+          </div>
+        </div>
+      </section>
+      <section class="settings-section">
+        <h3 class="section-label">Danger zone</h3>
+        <div class="settings-card danger-card">
+          <button id="clearVault" class="danger-button" type="button">Clear Vault</button>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <nav id="bottomNav" class="bottom-nav" aria-label="Main navigation">
+    <span id="navIndicator" class="nav-indicator"></span>
+    <button class="nav-button active" data-screen="home" type="button" aria-label="Home" aria-current="page">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+        <path d="M3.5 10.5L12 3L20.5 10.5V20.5H14.5V14H9.5V20.5H3.5V10.5Z"
+              stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <button class="nav-button" data-screen="scan" type="button" aria-label="Scan">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+        <path d="M7 3H4.5C3.67 3 3 3.67 3 4.5V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M17 3H19.5C20.33 3 21 3.67 21 4.5V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M7 21H4.5C3.67 21 3 20.33 3 19.5V17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M17 21H19.5C20.33 21 21 20.33 21 19.5V17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M6 12H18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button class="nav-button" data-screen="vault" type="button" aria-label="Vault">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none">
+        <path d="M4 6.5C4 5.67 4.67 5 5.5 5H18.5C19.33 5 20 5.67 20 6.5V19H4V6.5Z" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M4 9H20" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M8 5V9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M8 13H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M8 16H13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </nav>
+
+  <div id="demoBadge" class="demo-badge" hidden>DEMO</div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <div id="tradeModal" class="trade-modal" hidden>
+    <div class="trade-modal-card">
+      <button id="tradeModalClose" class="icon-button trade-modal-close" type="button" aria-label="Close">
+        <svg class="icon" viewBox="0 0 24 24" fill="none">
+          <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <h3 id="tradeModalTitle" class="trade-modal-title">Trade card</h3>
+      <div id="tradeModalQrWrap" class="trade-modal-qr-wrap">
+        <img id="tradeModalQr" class="trade-modal-qr" alt="Transfer QR code">
+      </div>
+      <p class="trade-modal-hint">
+        Let your friend scan this on their Scan tab to receive the card.
+        Only tap below once they actually have it in hand — this removes
+        it from your vault and can't be undone.
+      </p>
+      <button id="tradeModalConfirm" class="danger-button" type="button">
+        Mark as traded — remove from my vault
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (() => {
+    "use strict";
+
+    const hasNativeBridge = typeof window.CardVision !== "undefined";
+
+    if (!hasNativeBridge) {
+      function makeDemoCardArt(index, rarity) {
+        const gradients = [
+          ["#0B132B", "#5BC0BE"], ["#171717", "#A78BFA"],
+          ["#17100A", "#FBBF24"], ["#07170F", "#22FF88"]
+        ];
+        const pair = gradients[index % gradients.length];
+        const svg = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="600" height="840" viewBox="0 0 600 840">
+            <defs>
+              <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="${pair[0]}"/>
+                <stop offset="1" stop-color="${pair[1]}"/>
+              </linearGradient>
+            </defs>
+            <rect x="8" y="8" width="584" height="824" rx="42" fill="url(#g)"/>
+            <rect x="22" y="22" width="556" height="796" rx="32" fill="none"
+                  stroke="white" stroke-opacity=".25" stroke-width="3"/>
+            <text x="55" y="90" fill="white" font-family="Georgia,serif"
+                  font-size="34" font-weight="bold">CARD VISION</text>
+            <text x="55" y="760" fill="white" fill-opacity=".85"
+                  font-family="system-ui,sans-serif" font-size="24" font-weight="700">
+              ${String(rarity).toUpperCase()}
+            </text>
+          </svg>
+        `;
+        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+      }
+
+      const demoRarities = ["common", "rare", "epic", "legendary"];
+      const demoCards = ["Aether Scout", "Solar Warden", "Moonlit Oracle", "Golden Vanguard"]
+        .map((name, index) => ({
+          id: "demo-" + (index + 1),
+          name,
+          rarity: demoRarities[index],
+          description: "Demo collection card.",
+          renderDataUri: makeDemoCardArt(index, demoRarities[index]),
+          unlockedAt: Date.now() - ((index + 1) * 86400000)
+        }));
+
+      let demoServerUrl = "https://demo.cardvision.local";
+
+      window.CardVision = {
+        __isMock: true,
+        getVaultCards() { return JSON.stringify(demoCards); },
+        getServerUrl() { return demoServerUrl; },
+        setServerUrl(url) { demoServerUrl = String(url || ""); },
+        testConnection() {
+          setTimeout(() => {
+            if (typeof window.CardVision._connResult === "function") {
+              window.CardVision._connResult(true, "Connected — 1 card on server");
+            }
+          }, 600);
+        },
+        clearVault() {
+          demoCards.splice(0, demoCards.length);
+          window.dispatchEvent(new CustomEvent("cardvision:vaultChanged"));
+        },
+        getServerStatus() { return "online"; },
+        startScan() {}, stopScan() {}, toggleFlashlight() {},
+        onHologramState() {},
+        getAnimation() { return null; },
+        generateTransferQr() {
+          // Demo mode has no native QR encoder — just a placeholder so the modal still works.
+          const svg = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="240" height="240" viewBox="0 0 240 240">
+              <rect width="240" height="240" fill="#fff"/>
+              <text x="120" y="112" text-anchor="middle" font-family="system-ui,sans-serif"
+                    font-size="15" fill="#111">DEMO MODE</text>
+              <text x="120" y="134" text-anchor="middle" font-family="system-ui,sans-serif"
+                    font-size="12" fill="#555">no real QR on web preview</text>
+            </svg>`;
+          return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+        },
+        confirmTransferOut(cardId) {
+          const i = demoCards.findIndex(c => c.id === cardId);
+          if (i !== -1) demoCards.splice(i, 1);
+          window.dispatchEvent(new CustomEvent("cardvision:vaultChanged"));
+        }
+      };
+    }
+
+    const RARITY_COLORS = {
+      common: "#9CA3AF", uncommon: "#22FF88", rare: "#60A5FA",
+      epic: "#A78BFA", legendary: "#FBBF24", prototype: "#F97316"
+    };
+
+    const SCREEN_IDS = ["home", "scan", "vault", "settings"];
+    let currentScreen = "home";
+    let toastTimer = null;
+
+    const screens = {};
+    SCREEN_IDS.forEach(name => { screens[name] = document.getElementById("screen-" + name); });
+
+    const bottomNav = document.getElementById("bottomNav");
+    const vaultGrid = document.getElementById("vaultGrid");
+    const emptyVault = document.getElementById("emptyVault");
+    const vaultCount = document.getElementById("vaultCount");
+    const serverUrlInput = document.getElementById("serverUrl");
+    const connectionResult = document.getElementById("connectionResult");
+    const toast = document.getElementById("toast");
+    const demoBadge = document.getElementById("demoBadge");
+    const tradeModal = document.getElementById("tradeModal");
+    const tradeModalTitle = document.getElementById("tradeModalTitle");
+    const tradeModalQrWrap = document.getElementById("tradeModalQrWrap");
+    const tradeModalQr = document.getElementById("tradeModalQr");
+    const tradeModalConfirm = document.getElementById("tradeModalConfirm");
+
+    function safeBridgeCall(method, ...args) {
+      try {
+        if (window.CardVision && typeof window.CardVision[method] === "function") {
+          return window.CardVision[method](...args);
+        }
+      } catch (error) { console.error("CardVision bridge error:", method, error); }
+      return undefined;
+    }
+
+    function showToast(message) {
+      clearTimeout(toastTimer);
+      toast.textContent = message;
+      toast.classList.add("visible");
+      toastTimer = setTimeout(() => toast.classList.remove("visible"), 2200);
+    }
+
+    function escapeText(value) { return String(value == null ? "" : value); }
+
+    function getVaultCards() {
+      try {
+        const raw = safeBridgeCall("getVaultCards");
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw === "string") {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        }
+        return [];
+      } catch (error) { return []; }
+    }
+
+    function wasRecentlyUnlocked(unlockedAt) {
+      if (!unlockedAt) return false;
+      const time = new Date(unlockedAt).getTime();
+      if (!Number.isFinite(time)) return false;
+      return Date.now() - time <= 7 * 24 * 60 * 60 * 1000;
+    }
+
+    function updateNav(screenName) {
+      const hide = screenName === "scan";
+      bottomNav.classList.toggle("hidden", hide);
+      const buttons = Array.from(document.querySelectorAll(".nav-button"));
+      buttons.forEach((button, i) => {
+        const active = button.dataset.screen === screenName;
+        button.classList.toggle("active", active);
+        if (active) {
+          button.setAttribute("aria-current", "page");
+          const indicator = document.getElementById("navIndicator");
+          if (indicator) indicator.style.transform = `translateX(${i * 100}%)`;
+        } else {
+          button.removeAttribute("aria-current");
+        }
+      });
+    }
+
+    function navigate(screenName) {
+      if (!SCREEN_IDS.includes(screenName)) return;
+      const oldScreen = currentScreen;
+      if (oldScreen === screenName) {
+        if (screenName === "vault") renderVault();
+        return;
+      }
+      if (oldScreen === "scan") {
+        safeBridgeCall("stopScan");
+        if (window.CVOverlay) window.CVOverlay.stopCardAnimation();
+      }
+      document.querySelectorAll(".screen").forEach(s => s.classList.remove("previous"));
+      screens[oldScreen].classList.remove("active");
+      if (oldScreen !== screenName) screens[oldScreen].classList.add("previous");
+      screens[screenName].classList.add("active");
+      currentScreen = screenName;
+      updateNav(screenName);
+      if (screenName === "scan") safeBridgeCall("startScan");
+      if (screenName === "vault") renderVault();
+      if (screenName === "settings") loadSettings();
+      if (screenName === "home") updateServerStatus();
+      setTimeout(() => {
+        Object.keys(screens).forEach(name => {
+          if (name !== currentScreen) screens[name].classList.remove("previous");
+        });
+      }, 280);
+    }
+
+    function updateServerStatus() {
+        const status = safeBridgeCall("getServerStatus");
+        const container = document.getElementById("homeServerStatus");
+        const dot = container.querySelector(".status-dot");
+        const label = container.querySelector("span:last-child");
+
+        dot.classList.remove("online", "offline", "waking");
+
+        if (status === "online") {
+          dot.classList.add("online");
+          label.textContent = "CONNECTED";
+        } else if (status === "waking") {
+          dot.style.background = "var(--gold)";
+          label.textContent = "WAKING SERVER (~50S)";
+        } else if (status === "offline") {
+          dot.classList.add("offline");
+          label.textContent = "OFFLINE";
+        } else {
+          label.textContent = "UNKNOWN";
+        }
+    }
+
+    function renderVault() {
+        const cards = getVaultCards();
+        vaultGrid.innerHTML = "";
+
+        const ownedCards = cards.filter(c => c.isOwned !== false);
+        const seenCards = cards.filter(c => c.isOwned === false);
+
+        vaultCount.textContent = `${ownedCards.length} owned, ${seenCards.length} seen`;
+        emptyVault.hidden = cards.length !== 0;
+
+        if (!cards.length) return;
+
+        if (ownedCards.length > 0) {
+          const header = document.createElement("div");
+          header.style.gridColumn = "1 / -1";
+          header.style.color = "var(--gold)";
+          header.style.fontSize = "12px";
+          header.style.fontWeight = "900";
+          header.style.letterSpacing = "0.1em";
+          header.style.marginTop = "10px";
+          header.textContent = "OWNED COLLECTION";
+          vaultGrid.appendChild(header);
+
+          ownedCards.forEach(card => {
+            vaultGrid.appendChild(createCardTile(card, true));
+          });
+        }
+
+        if (seenCards.length > 0) {
+          const header = document.createElement("div");
+          header.style.gridColumn = "1 / -1";
+          header.style.color = "var(--muted)";
+          header.style.fontSize = "12px";
+          header.style.fontWeight = "900";
+          header.style.letterSpacing = "0.1em";
+          header.style.marginTop = "24px";
+          header.textContent = "SEEN (SCAN QR TO CLAIM)";
+          vaultGrid.appendChild(header);
+
+          seenCards.forEach(card => {
+            vaultGrid.appendChild(createCardTile(card, false));
+          });
+        }
+      }
+
+      function createCardTile(card, isOwned) {
+        const tile = document.createElement("article");
+        tile.className = "card-tile";
+
+        if (isOwned && wasRecentlyUnlocked(card.unlockedAt)) {
+          tile.classList.add("unlocked");
+        }
+
+        // Dim out unclaimed cards
+        if (!isOwned) {
+          tile.style.opacity = "0.5";
+          tile.style.filter = "grayscale(100%)";
+        }
+
+        const artWrap = document.createElement("div");
+        artWrap.className = "card-art-wrap";
+        const image = document.createElement("img");
+        image.className = "card-art";
+        image.alt = escapeText(card.name);
+        image.loading = "lazy";
+        image.decoding = "async";
+        if (card.renderDataUri) {
+          image.src = String(card.renderDataUri);
+        }
+
+        const name = document.createElement("div");
+        name.className = "card-name";
+        name.textContent = escapeText(card.name);
+
+        const chip = document.createElement("span");
+        const rarity = String(card.rarity || "common").toLowerCase();
+        chip.className = "rarity-chip rarity-" + (RARITY_COLORS[rarity] ? rarity : "common");
+        chip.textContent = rarity;
+
+        artWrap.appendChild(image);
+        tile.appendChild(artWrap);
+        tile.appendChild(name);
+        tile.appendChild(chip);
+
+        if (isOwned) {
+          tile.style.cursor = "pointer";
+          tile.setAttribute("role", "button");
+          tile.setAttribute("tabindex", "0");
+          tile.setAttribute("aria-label", "Trade " + escapeText(card.name));
+          tile.addEventListener("click", () => openTradeModal(card));
+        }
+
+        return tile;
+      }
+
+      let tradeModalCardId = null;
+
+      function openTradeModal(card) {
+        tradeModalCardId = card.id;
+        tradeModalTitle.textContent = "Trade: " + escapeText(card.name);
+        tradeModalQr.removeAttribute("src");
+        tradeModalQrWrap.classList.add("loading");
+        tradeModal.hidden = false;
+
+        const dataUri = safeBridgeCall("generateTransferQr", card.id);
+        tradeModalQrWrap.classList.remove("loading");
+        if (dataUri) {
+          tradeModalQr.src = dataUri;
+        } else {
+          showToast("Couldn't generate a trade code for this card.");
+          closeTradeModal();
+        }
+      }
+
+      function closeTradeModal() {
+        tradeModal.hidden = true;
+        tradeModalCardId = null;
+      }
+
+    function loadSettings() {
+      const url = safeBridgeCall("getServerUrl");
+      if (typeof url === "string") serverUrlInput.value = url;
+      connectionResult.textContent = "";
+      connectionResult.className = "connection-result";
+    }
+
+    function saveServerUrl() {
+      const value = serverUrlInput.value.trim();
+      if (!value) { showToast("Enter a server URL."); return; }
+      safeBridgeCall("setServerUrl", value);
+      showToast("Server URL saved.");
+    }
+
+    let connectionRequestPending = false;
+    window.CardVision._connResult = function(ok, msg) {
+      connectionRequestPending = false;
+      connectionResult.className = "connection-result " + (ok ? "success" : "failure");
+      connectionResult.textContent = msg || (ok ? "Connected" : "Failed");
+    };
+
+    function testConnection() {
+      connectionRequestPending = true;
+      connectionResult.className = "connection-result";
+      connectionResult.textContent = "Testing connection…";
+      try {
+        const result = safeBridgeCall("testConnection");
+        if (result && typeof result.then === "function") {
+          result.then(value => {
+            if (!connectionRequestPending) return;
+            window.CardVision._connResult(true, String(value || "Connected"));
+          }).catch(error => {
+            if (!connectionRequestPending) return;
+            window.CardVision._connResult(false, error && error.message ? error.message : "Failed");
+          });
+        }
+      } catch (error) {
+        connectionRequestPending = false;
+        window.CardVision._connResult(false, "Failed");
+      }
+    }
+
+    function clearVault() {
+      if (!window.confirm("Clear your entire vault? This cannot be undone.")) return;
+      safeBridgeCall("clearVault");
+      renderVault();
+      showToast("Vault cleared.");
+    }
+
+    document.getElementById("scanCta").addEventListener("click", () => navigate("scan"));
+    document.getElementById("vaultCta").addEventListener("click", () => navigate("vault"));
+    document.getElementById("scanBack").addEventListener("click", () => navigate("home"));
+    document.getElementById("vaultBack").addEventListener("click", () => navigate("home"));
+    document.getElementById("settingsBack").addEventListener("click", () => navigate("home"));
+    document.getElementById("flashButton").addEventListener("click", () => safeBridgeCall("toggleFlashlight"));
+    document.getElementById("saveServer").addEventListener("click", saveServerUrl);
+    document.getElementById("testServer").addEventListener("click", testConnection);
+    document.getElementById("clearVault").addEventListener("click", clearVault);
+    document.getElementById("tradeModalClose").addEventListener("click", closeTradeModal);
+    tradeModal.addEventListener("click", (e) => { if (e.target === tradeModal) closeTradeModal(); });
+    tradeModalConfirm.addEventListener("click", () => {
+      if (!tradeModalCardId) return;
+      if (!window.confirm("Remove this card from your vault? Only do this once your friend actually has it — this can't be undone.")) return;
+      safeBridgeCall("confirmTransferOut", tradeModalCardId);
+      closeTradeModal();
+      showToast("Card removed from your vault — trade complete.");
+      renderVault();
+    });
+
+    document.querySelectorAll(".nav-button").forEach(button => {
+      button.addEventListener("click", () => navigate(button.dataset.screen));
+    });
+
+    window.addEventListener("cardvision:vaultChanged", () => {
+      if (currentScreen === "vault") renderVault();
+    });
+
+    window.CardVisionUI = {
+      navigate, refreshVault: renderVault,
+      refreshServerStatus: updateServerStatus, showToast
+    };
+
+    /* =========================================================
+       HOMOGRAPHY MATH
+    ========================================================= */
+    function computeHomography(x0, y0, x1, y1, x2, y2, x3, y3) {
+      const dx1 = x1 - x2, dx2 = x3 - x2;
+      const dx3 = x0 - x1 + x2 - x3;
+      const dy1 = y1 - y2, dy2 = y3 - y2;
+      const dy3 = y0 - y1 + y2 - y3;
+      if (Math.abs(dx3) < 1e-6 && Math.abs(dy3) < 1e-6) {
+        return [x1 - x0, x2 - x1, x0, y1 - y0, y2 - y1, y0, 0, 0];
+      }
+      const denom = dx1 * dy2 - dx2 * dy1;
+      if (Math.abs(denom) < 1e-9) return null;
+      const g = (dx3 * dy2 - dx2 * dy3) / denom;
+      const h = (dx1 * dy3 - dx3 * dy1) / denom;
+      const a = x1 - x0 + g * x1;
+      const b = x3 - x0 + h * x3;
+      const c = x0;
+      const d = y1 - y0 + g * y1;
+      const e = y3 - y0 + h * y3;
+      const f = y0;
+      return [a, b, c, d, e, f, g, h];
+    }
+
+    /* =========================================================
+       TRACKING OVERLAY + CARD ANIMATION
+    ========================================================= */
+
+    const scanScreen = document.getElementById("screen-scan");
+
+    // Perspective on the parent is what makes translateZ() below actually
+    // push the sprite toward the camera instead of just scaling in place.
+    scanScreen.style.perspective = "900px";
+
+    // --- Contact shadow: stays flat on the card plane (the old matrix3d target) ---
+    const cardShadowEl = document.createElement("div");
+    cardShadowEl.style.cssText = `
+      position: absolute; left: 0; top: 0;
+      width: 1px; height: 1px;
+      transform-origin: 0 0;
+      pointer-events: none;
+      z-index: 2;
+      opacity: 0;
+      transition: opacity 220ms ease;
+      will-change: transform, opacity;
+    `;
+    const cardShadowInner = document.createElement("div");
+    cardShadowInner.style.cssText = `
+      position: absolute; left: 50%; top: 78%;
+      width: 55%; height: 16%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 72%);
+      transition: width 260ms cubic-bezier(0.2,0,0,1), height 260ms cubic-bezier(0.2,0,0,1), opacity 260ms ease;
+    `;
+    cardShadowEl.appendChild(cardShadowInner);
+    scanScreen.appendChild(cardShadowEl);
+
+    // --- Animation layer: lifts OFF the card plane instead of lying flat on it ---
+    const cardAnimEl = document.createElement("div");
+    cardAnimEl.style.cssText = `
+      position: absolute; left: 0; top: 0;
+      width: 1px; height: 1px;
+      transform-origin: 50% 85%;
+      pointer-events: none;
+      z-index: 3;
+      opacity: 0;
+      transition: opacity 220ms ease;
+      will-change: transform, opacity;
+    `;
+    const cardAnimImg = document.createElement("img");
+    cardAnimImg.style.cssText = `
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 18px 14px rgba(0,0,0,0.35));
+    `;
+    cardAnimEl.appendChild(cardAnimImg);
+    scanScreen.appendChild(cardAnimEl);
+
+    // --- Reticle ---
+    const reticleEl = document.createElement("div");
+    reticleEl.style.cssText = `
+      position: absolute; inset: 0; z-index: 5; pointer-events: none;
+      opacity: 0; transition: opacity 180ms ease;
+    `;
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 2; j++) {
+        const arm = document.createElement("div");
+        arm.style.cssText = `
+          position: absolute; width: 42px; height: 6px;
+          background: #22FF88; border-radius: 3px;
+          box-shadow: 0 0 16px rgba(34,255,136,0.75), 0 0 4px rgba(34,255,136,0.9);
+          transform-origin: left center;
+          transition: transform 40ms linear;
+        `;
+        reticleEl.appendChild(arm);
+      }
+    }
+    scanScreen.appendChild(reticleEl);
+
+    // --- Floating badge ---
+    const badgeEl = document.createElement("div");
+    badgeEl.style.cssText = `
+      position: absolute; z-index: 6; pointer-events: none;
+      background: rgba(10,10,10,0.94);
+      border: 1.5px solid #D4AF37; border-radius: 18px;
+      padding: 12px 18px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      opacity: 0; transform: scale(0.92);
+      transition: opacity 220ms cubic-bezier(0.2,0,0,1),
+                  transform 220ms cubic-bezier(0.2,0,0,1),
+                  top 60ms linear, left 60ms linear;
+    `;
+    badgeEl.innerHTML = `
+      <div id="badgeName" style="font-size:18px;font-weight:700;color:white;font-family:Georgia,serif;line-height:1.1;white-space:nowrap;">—</div>
+      <div id="badgeRarity" style="font-size:11px;font-weight:800;color:#D4AF37;letter-spacing:0.2em;margin-top:4px;text-transform:uppercase;">—</div>
+      <div style="position:absolute;left:50%;bottom:-12px;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:12px solid #D4AF37;"></div>
+      <div style="position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:10px solid rgba(10,10,10,0.94);"></div>
+    `;
+    scanScreen.appendChild(badgeEl);
+
+    // --- Info panel ---
+    const panelEl = document.createElement("div");
+    panelEl.style.cssText = `
+      position: absolute; left: 14px; right: 14px; z-index: 7;
+      bottom: calc(env(safe-area-inset-bottom) + 20px);
+      background: linear-gradient(180deg,#141414 0%,#1F1F1F 100%);
+      border-radius: 22px; padding: 20px 22px;
+      box-shadow: 0 20px 48px rgba(0,0,0,0.55);
+      opacity: 0; transform: translateY(24px);
+      transition: opacity 300ms cubic-bezier(0.2,0,0,1),
+                  transform 300ms cubic-bezier(0.2,0,0,1);
+      pointer-events: none; overflow: hidden;
+    `;
+    panelEl.innerHTML = `
+      <div id="panelAccent" style="position:absolute;left:12px;top:20px;bottom:20px;width:4px;border-radius:2px;background:#22FF88;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div id="panelName" style="font-size:30px;font-weight:900;color:white;font-family:Georgia,serif;letter-spacing:-0.02em;line-height:1.05;">—</div>
+        <div id="panelRarity" style="padding:6px 12px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;background:rgba(255,255,255,0.06);">—</div>
+      </div>
+      <div id="panelDesc" style="margin-top:10px;font-size:16px;line-height:1.3;color:rgba(255,255,255,0.88);">—</div>
+      <div id="panelVault" style="position:absolute;right:20px;bottom:18px;padding:8px 14px;border-radius:999px;background:#22FF88;color:#0A1A12;font-size:12px;font-weight:900;letter-spacing:0.12em;display:none;">IN VAULT</div>
+    `;
+    scanScreen.appendChild(panelEl);
+
+    // --- Flash ---
+    const flashEl = document.createElement("div");
+    flashEl.style.cssText = `
+      position: absolute; inset: 0; z-index: 20; pointer-events: none;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      opacity: 0; transform: scale(1);
+    `;
+    flashEl.innerHTML = `
+      <div style="font-size:54px;font-weight:900;color:white;font-family:Georgia,serif;letter-spacing:0.08em;">NEW CARD</div>
+      <div style="margin-top:14px;font-size:15px;font-weight:800;color:#D4AF37;letter-spacing:0.4em;">ADDED TO VAULT</div>
+    `;
+    scanScreen.appendChild(flashEl);
+
+    // --- State ---
+    let currentRenderDataUri = null;
+    let currentCardId = null;
+    const animations = {};
+    let activeCardAnim = null;
+    let lastAppliedTransform = null;
+
+    function startCardAnimation(cardId, animName) {
+      stopCardAnimation();
+      const anim = animations[cardId + ":" + animName];
+      if (!anim || !anim.frames.length) return;
+
+      const fps = anim.meta.fps || 12;
+      let frame = 0;
+      cardAnimImg.src = anim.frames[0];
+      cardAnimEl.style.opacity = 1;
+      startPop();
+
+      // Card animations always loop so the effect stays alive while the card is in view.
+      const interval = setInterval(() => {
+        frame = (frame + 1) % anim.frames.length;
+        cardAnimImg.src = anim.frames[frame];
+      }, 1000 / fps);
+
+      activeCardAnim = { cardId, animName, interval };
+    }
+
+    function stopCardAnimation() {
+      if (activeCardAnim) {
+        clearInterval(activeCardAnim.interval);
+        activeCardAnim = null;
+      }
+      cardAnimEl.style.opacity = 0;
+      stopPop();
+    }
+
+    // Preference order: idle > spin > default > loop > whatever exists.
+    function pickDefaultAnimation(cardId) {
+      const names = Object.keys(animations)
+        .filter(k => k.startsWith(cardId + ":"))
+        .map(k => k.split(":")[1]);
+      if (!names.length) return null;
+      const prefs = ["idle", "spin", "default", "loop", "walk", "run"];
+      for (const p of prefs) if (names.includes(p)) return p;
+      return names[0];
+    }
+
+    // --- Pop-out state: animated on top of whatever update() reports each frame ---
+    let popT = 0;              // 0 = just the shadow, 1 = fully popped up
+    let popRAF = null;
+    let popStartMs = 0;
+    const POP_MS = 550;
+    // back-out easing: overshoots past 1 then settles, gives the "leap out" feel
+    function easeOutBack(t) {
+      const c1 = 1.70158, c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    }
+    function startPop() {
+      popStartMs = performance.now();
+      cancelAnimationFrame(popRAF);
+      const step = (now) => {
+        const t = Math.min(1, (now - popStartMs) / POP_MS);
+        popT = easeOutBack(t);
+        applyCardTransform();
+        if (t < 1) popRAF = requestAnimationFrame(step);
+        else popRAF = requestAnimationFrame(idleLoop);
+      };
+      popRAF = requestAnimationFrame(step);
+    }
+    function idleLoop(now) {
+      // Gentle perpetual bob + wobble once settled, so it reads as "alive" in 3D
+      // space rather than a static sticker — cheap, no new assets required.
+      const bob = Math.sin(now / 650) * 0.04;
+      const wobble = Math.sin(now / 1100) * 3;
+      popT = 1 + bob;
+      idleWobbleDeg = wobble;
+      applyCardTransform();
+      popRAF = requestAnimationFrame(idleLoop);
+    }
+    function stopPop() {
+      cancelAnimationFrame(popRAF);
+      popRAF = null;
+      popT = 0;
+    }
+
+    let lastQuad = null;       // last corners-in-px + derived geometry from update()
+    let idleWobbleDeg = 0;
+
+    function applyCardTransform() {
+        if (!lastQuad) return;
+        const { cx, cy, topW, leftH, rightH, skewX, tiltY } = lastQuad;
+
+        // Shadow: always flat on the card plane via the true homography
+        if (lastQuad.flatTransform && lastQuad.flatTransform !== lastAppliedTransform) {
+          lastAppliedTransform = lastQuad.flatTransform;
+          cardShadowEl.style.transform = lastQuad.flatTransform;
+        }
+        const shrink = 1 - 0.45 * Math.min(1, popT);
+        cardShadowInner.style.width = (55 * shrink) + "%";
+        cardShadowInner.style.height = (16 * shrink) + "%";
+        cardShadowInner.style.opacity = String(0.9 - 0.5 * Math.min(1, popT));
+
+        // Sprite: rises in screen space, scales up, and tilts
+        const zPush = 90 * popT;
+        const scale = 0.50 + 0.50 * Math.min(1.08, popT);
+        const rotX = -tiltY * 18;
+        const rotY = skewX * 14 + idleWobbleDeg;
+        const w = Math.max(40, topW);
+        const h = Math.max(40, (leftH + rightH) / 2);
+
+        cardAnimEl.style.width = w + "px";
+        cardAnimEl.style.height = h + "px";
+
+        // CRITICAL FIX: Push the animation down by exactly 50% of the card's height
+        // so its center aligns with the middle of the drawing, escaping the top badge.
+        const verticalDrop = h * 0.5;
+
+        cardAnimEl.style.transform =
+          `translate3d(${cx - w / 2}px, ${cy - h / 2 + verticalDrop}px, ${zPush}px) ` +
+          `scale(${scale}) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+      }
+
+    window.CVOverlay = {
+      update(corners) {
+        if (!corners || corners.length !== 4) {
+          reticleEl.style.opacity = 0;
+          badgeEl.style.opacity = 0;
+          cardShadowEl.style.opacity = 0;
+          cardAnimEl.style.opacity = 0;
+          stopPop();
+          lastQuad = null;
+          return;
+        }
+        const W = window.innerWidth;
+        const H = window.innerHeight;
+        const arms = reticleEl.children;
+        for (let i = 0; i < 4; i++) {
+          const p = corners[i];
+          const x = p.x * W;
+          const y = p.y * H;
+          const next = corners[(i + 1) % 4];
+          const prev = corners[(i + 3) % 4];
+          const angNext = Math.atan2(next.y * H - y, next.x * W - x);
+          const angPrev = Math.atan2(prev.y * H - y, prev.x * W - x);
+          arms[i * 2].style.transform = `translate(${x}px, ${y}px) rotate(${angNext}rad)`;
+          arms[i * 2 + 1].style.transform = `translate(${x}px, ${y}px) rotate(${angPrev}rad)`;
+        }
+        reticleEl.style.opacity = 1;
+        cardShadowEl.style.opacity = 1;
+
+        const px = [
+          corners[0].x * W, corners[0].y * H,
+          corners[1].x * W, corners[1].y * H,
+          corners[2].x * W, corners[2].y * H,
+          corners[3].x * W, corners[3].y * H
+        ];
+        const m = computeHomography(px[0], px[1], px[2], px[3], px[4], px[5], px[6], px[7]);
+        const flatTransform = m
+          ? (([a, b, c, d, e, f, g, h]) =>
+              `matrix3d(${a},${d},0,${g},${b},${e},0,${h},0,0,1,0,${c},${f},0,1)`)(m)
+          : null;
+
+        // TL(0) TR(1) BR(2) BL(3) — derive a cheap tilt estimate from edge-length
+        // asymmetry (no proper pose solve needed for a game-card-sized effect).
+        const topW = Math.hypot(px[2] - px[0], px[3] - px[1]);
+        const botW = Math.hypot(px[6] - px[4], px[7] - px[5]);
+        const leftH = Math.hypot(px[6] - px[0], px[7] - px[1]);
+        const rightH = Math.hypot(px[4] - px[2], px[5] - px[3]);
+        const skewX = Math.max(-1, Math.min(1, (rightH - leftH) / Math.max(1, rightH + leftH)));
+        const tiltY = Math.max(-1, Math.min(1, (botW - topW) / Math.max(1, botW + topW)));
+        const cx = (px[0] + px[2]) / 2, cy = (px[1] + px[3]) / 2;
+
+        lastQuad = { cx, cy, topW, leftH, rightH, skewX, tiltY, flatTransform };
+        if (!popRAF) applyCardTransform();
+
+        const mx = (corners[0].x + corners[1].x) / 2 * W;
+        const my = Math.min(corners[0].y, corners[1].y) * H;
+        const bw = badgeEl.offsetWidth;
+        const bh = badgeEl.offsetHeight;
+        let bx = mx - bw / 2;
+        let by = my - bh - 22;
+        bx = Math.max(12, Math.min(W - bw - 12, bx));
+        by = Math.max(80, by);
+        badgeEl.style.left = bx + "px";
+        badgeEl.style.top = by + "px";
+      },
+
+      showCard(data) {
+        currentCardId = data.id || null;
+
+        document.getElementById("badgeName").textContent = data.name || "—";
+        document.getElementById("badgeRarity").textContent = (data.rarity || "").toUpperCase();
+
+        const color = RARITY_COLORS[String(data.rarity || "").toLowerCase()] || "#22FF88";
+
+        document.getElementById("panelName").textContent = data.name || "—";
+        document.getElementById("panelRarity").textContent = (data.rarity || "").toUpperCase();
+        document.getElementById("panelRarity").style.color = color;
+        document.getElementById("panelRarity").style.background = color + "22";
+        document.getElementById("panelAccent").style.background = color;
+        document.getElementById("panelDesc").textContent = data.description || "";
+        document.getElementById("panelVault").style.display = data.inVault ? "inline-block" : "none";
+
+        badgeEl.style.opacity = 1;
+        badgeEl.style.transform = "scale(1)";
+        panelEl.style.opacity = 1;
+        panelEl.style.transform = "translateY(0)";
+        panelEl.style.pointerEvents = "auto";
+
+        if (data.id) {
+          const animName = pickDefaultAnimation(data.id);
+          if (animName) startCardAnimation(data.id, animName);
+        }
+      },
+
+      setRenderData(dataUri) { currentRenderDataUri = dataUri || null; },
+
+      registerAnimation(cardId, animName, bundle) {
+        try {
+          const data = typeof bundle === "string" ? JSON.parse(bundle) : bundle;
+          animations[cardId + ":" + animName] = {
+            meta: data.meta,
+            frames: data.frames
+          };
+          data.frames.forEach(src => { const im = new Image(); im.src = src; });
+
+          if (currentCardId === cardId) {
+              const picked = pickDefaultAnimation(cardId);
+              if (picked && (!activeCardAnim || activeCardAnim.animName !== picked)) {
+                startCardAnimation(cardId, picked);
+              }
+            }
+        } catch (e) { console.error("registerAnimation failed", e); }
+      },
+
+      setCardAnimation(cardId, animName) {
+        if (currentCardId === cardId) startCardAnimation(cardId, animName);
+      },
+
+      startCardAnimation,
+      stopCardAnimation,
+
+      hideCard() {
+        stopCardAnimation();
+        cardShadowEl.style.opacity = 0;
+        badgeEl.style.opacity = 0;
+        badgeEl.style.transform = "scale(0.92)";
+        panelEl.style.opacity = 0;
+        panelEl.style.transform = "translateY(24px)";
+        panelEl.style.pointerEvents = "none";
+        currentCardId = null;
+      },
+
+      flashUnlock() {
+        flashEl.style.transition = "none";
+        flashEl.style.opacity = 1;
+        flashEl.style.transform = "scale(1)";
+        void flashEl.offsetWidth;
+        flashEl.style.transition =
+          "opacity 1600ms cubic-bezier(0.2,0,0,1), transform 1600ms cubic-bezier(0.2,0,0,1)";
+        flashEl.style.opacity = 0;
+        flashEl.style.transform = "scale(1.35)";
+      }
+    };
+
+    if (window.CardVision.__isMock) demoBadge.hidden = false;
+
+    updateNav("home");
+    updateServerStatus();
+
+  })();
+</script>
+</body>
+</html>

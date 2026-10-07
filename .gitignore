@@ -1,29 +1,40 @@
-# Secrets & Keys (NEVER COMMIT)
-pasta1*
-deep.txt
-cmd.txt
-*.env
-local.properties
-google-services.json
-
-# Android / Gradle
-.gradle/
+﻿.gradle/
 build/
-app/build/
-.idea/
+*/build/
+captures/
+.externalNativeBuild/
 .cxx/
-*.apk
-*.aab
-
-# Python
+.idea/
+*.iml
+*.iws
+*.ipr
+local.properties
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+secrets/
+credentials/
+*.pem
+*.key
+__pycache__/
+*.py[cod]
 .venv/
 venv/
-__pycache__/
-*.pyc
-
-# OS Files
+env/
+node_modules/
 .DS_Store
 Thumbs.db
-
-# Exclude local scripts
-mint.py
+desktop.ini
+*.tmp
+*.temp
+*.log
+*.zip
+*.7z
+*.rar
+.cache/
+tmp/
+temp/

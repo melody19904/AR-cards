@@ -74,7 +74,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.0")
     // QR rendering for the offline P2P transfer code (C10). No network calls, tiny footprint.
     implementation("com.google.zxing:core:3.5.3")
 

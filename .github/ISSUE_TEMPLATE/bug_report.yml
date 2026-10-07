@@ -1,0 +1,76 @@
+name: 🐛 Bug Report
+description: Something in CARD VISION isn't working as expected
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please check [`docs/KNOWN_ISSUES.md`](../../docs/KNOWN_ISSUES.md) first — it might already be tracked there.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area affected
+      description: Which part of the app does this touch?
+      options:
+        - Scanning / Card recognition
+        - AR overlay / Animation
+        - Vault / Local persistence
+        - Claiming / QR
+        - Trading (P2P)
+        - Server (server.py)
+        - Supabase / asset storage
+        - WebView UI
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Go to Scan
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / Logcat output
+      render: shell
+
+  - type: input
+    id: device
+    attributes:
+      label: Device + Android version
+      placeholder: "e.g. Pixel 7, Android 14"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I checked this isn't already listed in docs/KNOWN_ISSUES.md
+          required: true
+        - label: I did not include any secrets, API keys, or tokens in this report
+          required: true

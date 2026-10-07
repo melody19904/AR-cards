@@ -1,34 +1,31 @@
-﻿# Pull Request
+## What does this change?
 
-## What changed?
+<!-- Short description of the change and why it's needed -->
 
-Describe the change.
+## Area(s) touched
 
-## Why?
+- [ ] MainActivity
+- [ ] VaultStore / VaultHelper
+- [ ] WebAppBridge
+- [ ] CameraX
+- [ ] CardEngine
+- [ ] server.py
+- [ ] Supabase integration
+- [ ] WebView UI (index.html)
+- [ ] Docs only
 
-Explain the reason.
+## Checklist
 
-## Testing
+- [ ] Code builds
+- [ ] Existing functionality was tested, not just the new change
+- [ ] Scanner was tested, if affected (permission, startup/shutdown, detection, flashlight)
+- [ ] Vault was tested, if affected (owned cards, seen cards, persistence across restart)
+- [ ] WebView bridge was tested, if affected (every native method the JS calls)
+- [ ] No secrets, keys, or tokens were committed
+- [ ] Documentation was updated if behavior changed
+- [ ] Large assets (animations, images) were handled per `docs/ASSET_PIPELINE.md`, not dumped into SQLite
+- [ ] No unrelated refactoring bundled in
 
-- [ ] Build completed
-- [ ] Android app launched
-- [ ] Camera tested
-- [ ] Scanner tested
-- [ ] Vault tested
-- [ ] WebView tested
-- [ ] Backend tested
-- [ ] Relevant feature manually tested
+## Screenshots / recording (if UI-visible)
 
-## Regression Check
-
-Could this affect CameraX, permissions, flashlight, card recognition, vault persistence, WebView bridge, animations, server communication, claiming, or trading?
-
-## Security
-
-- [ ] No credentials added
-- [ ] No API keys added
-- [ ] No private signing material added
-
-## Documentation
-
-- [ ] Documentation updated where necessary
+<!-- Drag and drop images or a short clip here -->

@@ -1,91 +1,145 @@
-﻿# CARD VISION
+<div align="center">
 
-> Physical cards. Digital ownership. Augmented reality.
+# 🎴 CARD VISION
 
-CARD VISION is an Android augmented-reality card collecting system connecting physical cards with digital ownership, persistent storage, animated AR content, remote card services, and future peer-to-peer trading.
+### Physical cards. Digital ownership. Augmented reality.
 
-## Screenshots
+An Android app that recognizes real, physical trading cards through the camera and brings them to life — no ARCore, no markers, just computer vision.
 
-### HOME
-![CARD VISION Home](docs/media/Home.jpg)
+![Platform](https://img.shields.io/badge/platform-Android-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?logo=kotlin&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white)
+![GitHub last commit](https://img.shields.io/github/last-commit/melody19904/AR-cards)
+![GitHub repo size](https://img.shields.io/github/repo-size/melody19904/AR-cards)
+![GitHub top language](https://img.shields.io/github/languages/top/melody19904/AR-cards)
 
-### SCAN
-![CARD VISION Scan](docs/media/Scan.jpg)
+**[Screenshots](#-screenshots) · [How it works](#-how-it-works) · [Architecture](#-architecture) · [The Prototype](#-the-prototype) · [Status](#-project-status) · [Contributing](#-contributing)**
 
-### VAULT
-![CARD VISION Vault](docs/media/Vault.jpg)
+</div>
 
-### SETTINGS
-![CARD VISION Settings](docs/media/settings.jpg)
+---
 
-## The Prototype
+## 📷 Screenshots
 
-Every project has a beginning.
+<table>
+<tr>
+<td width="50%"><img src="docs/media/Home.jpg" width="100%" alt="Home screen"><p align="center"><sub><b>Home</b></sub></p></td>
+<td width="50%"><img src="docs/media/Scan.jpg" width="100%" alt="Scan screen"><p align="center"><sub><b>Scan</b></sub></p></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/media/Vault.jpg" width="100%" alt="Vault screen"><p align="center"><sub><b>Vault</b></sub></p></td>
+<td width="50%"><img src="docs/media/settings.jpg" width="100%" alt="Settings screen"><p align="center"><sub><b>Settings</b></sub></p></td>
+</tr>
+</table>
 
-Before CARD VISION became a larger AR card platform, there was **Blue Omelett**.
+## ✨ What it does
 
-![Blue Omelett prototype card](docs/media/Blue%20Omelett.jpg)
+<table>
+<tr>
+<td width="25%" valign="top">
 
-Blue Omelett represents one of the earliest physical-card prototypes behind the project.
+### 📷 Scan
+On-device computer vision (OpenCV ORB + optical-flow tracking) finds and tracks a physical card in the live camera feed. No internet required.
 
-It was not the finished system. It was proof that the idea could become something real.
+</td>
+<td width="25%" valign="top">
 
-**That prototype gave the project a reason to keep going.**
+### 🎴 Vault
+Claimed cards persist locally in SQLite — name, rarity, artwork, and animation, all available fully offline.
 
-The repository intentionally preserves that history because CARD VISION is also a record of the experiments, prototypes, technical problems, and iterations that made the larger system possible.
+</td>
+<td width="25%" valign="top">
 
-## Project Status
+### 🪄 AR Overlay
+A matching render is warped onto the tracked card in real time, with optional looping animation layered on top.
 
-CARD VISION is an active prototype / development project.
+</td>
+<td width="25%" valign="top">
 
-Current systems include:
+### 🔄 Trade
+Peer-to-peer card transfer between two phones via a locally-generated QR code — no server required to complete a trade.
 
-- Android application
-- CameraX scanning
-- WebView UI
-- Native JavaScript bridge
-- Card recognition
-- Local persistent vault
-- Physical card claiming
-- Render caching
-- Animation caching
-- Server-backed catalog
-- Supabase asset storage
-- Demo mode
-- Seen / Owned card states
-- Trading UI and P2P infrastructure
+</td>
+</tr>
+</table>
 
-## Architecture
+## 🧭 How it works
 
-```text
-Physical Card
-     |
-     v
-Android CameraX
-     |
-     v
-Card Detection / Recognition
-     |
-     +--------------> Server Catalog
-     |
-     +--------------> Local Vault
-     |
-     +--------------> AR Renderer
-                            |
-                            v
-                        WebView UI
-                            |
-                            v
-                     Animated Content
+```mermaid
+flowchart TD
+    A[📇 Physical Card] --> B[📷 Android CameraX]
+    B --> C{🔍 Card Engine<br/>ORB + Optical Flow}
+    C -->|match found| D[🪪 Card Identified]
+    D --> E[🧩 Local Vault<br/>SQLite]
+    D --> F[🪄 AR Renderer<br/>WebView Overlay]
+    E -.sync when online.-> G[(☁️ Catalog Server)]
+    G -.assets.-> H[(🗄️ Supabase Storage)]
 ```
 
-The Android application owns device-level functionality such as CameraX, permissions, flashlight control, local persistence, networking, asset caching, and WebView hosting.
+> [!NOTE]
+> Recognition and tracking happen **entirely on-device**. The server is only ever consulted for the card catalog and asset downloads — never for identifying what's in front of the camera.
 
-The WebView owns presentation and interaction such as HOME, SCAN, VAULT, SETTINGS, AR overlay presentation, navigation, and trade UI.
+## 🏗️ Architecture
 
-The WebAppBridge connects the two layers.
+```mermaid
+flowchart LR
+    subgraph Android App
+        CX[CameraX] --> CE[CardEngine<br/>OpenCV]
+        CE --> MA[MainActivity]
+        MA <--> WB[WebAppBridge]
+        WB <--> WV[WebView UI<br/>index.html]
+        MA --> VH[VaultHelper<br/>SQLite]
+        MA --> VS[VaultStore<br/>SQLite]
+    end
+    subgraph Backend
+        SRV[server.py] --> SB[(Supabase Storage)]
+    end
+    MA <-->|catalog + assets| SRV
+```
 
-## Repository Structure
+<details>
+<summary><b>Layer responsibilities</b></summary>
+
+<br>
+
+| Layer | Owns |
+|---|---|
+| **Android app** | CameraX, permissions, flashlight, local persistence, networking, asset caching, WebView hosting |
+| **WebView UI** | Home / Scan / Vault / Settings screens, AR overlay presentation, navigation, trade UI |
+| **WebAppBridge** | The one-and-only contract between native Kotlin and the WebView's JavaScript |
+| **server.py** | Card catalog list, asset relay from Supabase, lightweight `/health` endpoint |
+| **Supabase** | Durable storage for card artwork, reference images, and animation frames |
+
+</details>
+
+## 🥚 The Prototype
+
+Every project has a beginning. Before CARD VISION became a larger AR card platform, there was **Blue Omelett**.
+
+<div align="center">
+<img src="docs/media/Blue Omelett.jpg" width="320" alt="Blue Omelett prototype card">
+</div>
+
+Blue Omelett wasn't the finished system — it was proof the physical-card idea could become something real. **That prototype gave the project a reason to keep going**, and the repo keeps it around on purpose: CARD VISION is also a record of the experiments and iterations that got it here.
+
+## 📦 Project Status
+
+- [x] CameraX scanning pipeline
+- [x] On-device card recognition & tracking (OpenCV)
+- [x] WebView UI + native JS bridge
+- [x] Local persistent vault (offline-first)
+- [x] Physical card claiming via QR
+- [x] Render + animation caching
+- [x] Server-backed catalog with Supabase asset storage
+- [x] Seen vs. Owned card states
+- [x] Peer-to-peer trading (local QR handshake)
+- [ ] Cold-start UX for sleeping free-tier servers
+- [ ] Repository hygiene pass (signing, network security config)
+
+> [!TIP]
+> See [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) for the current list of open bugs and rough edges.
+
+## 📁 Repository Structure
 
 ```text
 CARD-VISION/
@@ -94,80 +148,62 @@ CARD-VISION/
 ├── SECURITY.md
 ├── CODE_OF_CONDUCT.md
 ├── CHANGELOG.md
-├── .gitignore
-├── .gitattributes
-├── .env.example
+├── .gitignore · .gitattributes · .env.example
+├── android/                 # The Kotlin app (CameraX, OpenCV, WebView UI)
+├── server/                  # Python catalog/asset server + Supabase integration
 ├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── DATA_STORAGE.md
-│   ├── ASSET_PIPELINE.md
-│   ├── RELEASE.md
-│   ├── REPOSITORY_SETUP.md
-│   ├── KNOWN_ISSUES.md
-│   └── media/
-│       ├── Blue Omelett.jpg
-│       ├── Home.jpg
-│       ├── Scan.jpg
-│       ├── Vault.jpg
-│       └── settings.jpg
+│   ├── ARCHITECTURE.md · DATA_STORAGE.md · ASSET_PIPELINE.md
+│   ├── RELEASE.md · REPOSITORY_SETUP.md · KNOWN_ISSUES.md
+│   └── media/                # Screenshots + Blue Omelett
 └── .github/
-    ├── PULL_REQUEST_TEMPLATE.md
-    └── ISSUE_TEMPLATE/
-        ├── bug_report.md
-        └── feature_request.md
+    ├── ISSUE_TEMPLATE/ · PULL_REQUEST_TEMPLATE.md
+    ├── CODEOWNERS · dependabot.yml
+    └── workflows/
 ```
 
-## Development Principles
+## ⚠️ Development Principles
 
-CARD VISION is being developed with a strong emphasis on preserving working functionality.
+> [!IMPORTANT]
+> A change that fixes one thing but silently breaks scanning, permissions, flashlight control, vault persistence, or server detection is a **regression**, not a fix.
 
-Changes touching these areas should be treated carefully:
+<details>
+<summary><b>High-risk areas — review changes here extra carefully</b></summary>
 
-- MainActivity
-- VaultStore
-- WebAppBridge
-- CameraX
-- CardEngine
-- server.py
-- Supabase storage
-- animation handling
-- claiming
-- trading
-- WebView UI
+<br>
 
-A change that fixes one feature but silently breaks scanning, permissions, flashlight control, vault persistence, or server detection is a regression.
+`MainActivity` · `VaultStore` · `VaultHelper` · `WebAppBridge` · `CameraX` setup · `CardEngine` · `server.py` · Supabase storage layout · claim flow · trade flow · WebView UI
 
-## Large Animation Assets
+**After touching scanning:** test camera permission, startup/shutdown, card detection, server detection, flashlight, AR overlay.
+**After touching the vault:** test owned cards, seen cards, persistence across restart, render assets, animations.
+**After touching the bridge:** test every native method the WebView calls, navigation, scanner start/stop, settings, vault refresh.
 
-Animation bundles can become very large. Android SQLite CursorWindow limits mean large animation payloads should not be treated like ordinary small database fields.
+</details>
 
-Preferred architecture:
+<details>
+<summary><b>Large animation assets</b></summary>
+
+<br>
+
+Android's SQLite `CursorWindow` has practical row-size limits. Large animation payloads belong on disk, not in a database blob:
 
 ```text
-Small metadata -> SQLite / local metadata
-Large animation bundle -> Disk / file cache
+Small metadata  -> SQLite / local metadata
+Large animation -> Disk / file cache
 ```
 
-## Security
+</details>
 
-Never commit Supabase service keys, API keys, passwords, private signing keys, .env files, credentials, or private certificates.
+## 🔐 Security
 
-See `SECURITY.md`.
+> [!WARNING]
+> Never commit `.env`, Supabase service-role keys, API keys, passwords, signing credentials, or certificates. If one slips through, treat it as compromised immediately — rotating it is the only real fix; rewriting git history alone does not unpublish it. See [`SECURITY.md`](SECURITY.md).
 
-## Contributing
+## 🤝 Contributing
 
-Read `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`, `docs/DATA_STORAGE.md`, `docs/ASSET_PIPELINE.md`, and `docs/KNOWN_ISSUES.md`.
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/DATA_STORAGE.md`](docs/DATA_STORAGE.md), and [`docs/ASSET_PIPELINE.md`](docs/ASSET_PIPELINE.md) before opening a PR. Small, testable changes are strongly preferred over large rewrites — see the [PR checklist](.github/PULL_REQUEST_TEMPLATE.md).
 
-## Project History
+---
 
-CARD VISION started from experimentation. The **Blue Omelett** prototype is part of that history and should remain documented in the repository.
-
-It represents the point where the physical-card idea started becoming tangible.
-
-> A physical card that can become something more when viewed through the application.
-
-## Authoring Philosophy
-
-CARD VISION is intentionally being built incrementally. Preserve working functionality, make the smallest safe change, test the affected path, check for regressions, document architectural changes, and only then expand the system.
-
-**CARD VISION** — Physical cards. Digital ownership. Augmented reality.
+<div align="center">
+<sub><b>CARD VISION</b> — Physical cards. Digital ownership. Augmented reality.</sub>
+</div>

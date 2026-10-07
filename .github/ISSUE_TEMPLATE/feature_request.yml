@@ -1,0 +1,43 @@
+name: 💡 Feature Request
+description: Suggest an idea for CARD VISION
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What's the gap or friction you're running into today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area affected
+      options:
+        - Scanning / Card recognition
+        - AR overlay / Animation
+        - Vault / Local persistence
+        - Claiming / QR
+        - Trading (P2P)
+        - Server (server.py)
+        - Supabase / asset storage
+        - WebView UI
+        - New area
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you thought about and why they didn't fit.
+    validations:
+      required: false

@@ -1,0 +1,26 @@
+# Secrets & Keys (NEVER COMMIT)
+pasta1*
+deep.txt
+cmd.txt
+*.env
+local.properties
+google-services.json
+
+# Android / Gradle
+.gradle/
+build/
+app/build/
+.idea/
+.cxx/
+*.apk
+*.aab
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# OS Files
+.DS_Store
+Thumbs.db

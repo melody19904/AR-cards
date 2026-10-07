@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <title>CARD VISION</title>
+  <style>
+    :root{--bg:#0A0A0A;--s:#141414;--s2:#1F1F1F;--gold:#D4AF37;--green:#22FF88;--text:#F5F5F5;--muted:#888;--danger:#FF4D5A;--nav:64px;--ease:cubic-bezier(.2,0,0,1)}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body,#app{width:100%;height:100%;margin:0}
+    html,body{overflow:hidden}
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:transparent;color:var(--text);font-feature-settings:"ss01" 1}
+    button,input{font:inherit}button{border:0;outline:0;color:inherit;cursor:pointer}input{outline:0}
+    .screen{position:absolute;inset:0;overflow:hidden;background:var(--bg);visibility:hidden;opacity:0;transform:translateX(100%);transition:transform 250ms var(--ease),opacity 250ms var(--ease),visibility 0s linear 250ms}
+    .screen.active{visibility:visible;opacity:1;transform:translateX(0);transition:transform 250ms var(--ease),opacity 250ms var(--ease),visibility 0s}
+    #screen-scan{background:transparent}
+    .scroll{height:100%;overflow:auto;padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom) + 24px);-webkit-overflow-scrolling:touch}
+    .display{font-family:Georgia,"Times New Roman",serif;font-feature-settings:"ss01" 1}
+    .top{height:calc(68px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 16px 0;display:grid;grid-template-columns:44px 1fr 44px;align-items:end;padding-bottom:12px;background:rgba(10,10,10,.97);position:relative;z-index:10}
+    #screen-scan .top{background:transparent}
+    .iconbtn{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.05)}
+    .icon{width:22px;height:22px}
+    .iconbtn:active,.btn:active,.nav:active{transform:scale(.96)}
+    .title{text-align:center;margin:0;font-size:20px;line-height:1;font-weight:750}
+    .home{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 32px) 24px calc(var(--nav) + env(safe-area-inset-bottom) + 32px)}
+    .brand{margin:0;color:var(--gold);font:normal 700 clamp(44px,12vw,76px)/.88 Georgia,"Times New Roman",serif;letter-spacing:-.06em;text-align:center}
+    .sub{margin:18px 0 48px;color:#666;font-size:11px;font-weight:800;letter-spacing:.28em;text-transform:uppercase}
+    .actions{width:100%;max-width:430px;display:grid;gap:14px}
+    .btn{min-height:56px;border-radius:13px;padding:0 18px;font-size:13px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;transition:transform 160ms ease}
+    .primary{background:var(--green);color:#06150D;box-shadow:0 14px 36px rgba(34,255,136,.12)}
+    .secondary{background:var(--s);color:var(--gold);box-shadow:0 14px 30px #0005}
+    .status{margin-top:48px;display:flex;gap:8px;align-items:center;color:#777;font-size:10px;font-weight:850;letter-spacing:.18em}
+    .dot{width:7px;height:7px;border-radius:50%;background:#666}.dot.on{background:var(--green)}.dot.off{background:var(--danger)}
+    .home-settings{position:absolute;right:16px;top:calc(env(safe-area-inset-top) + 14px)}
+    .vhead{padding:20px 16px 14px;display:flex;align-items:center;justify-content:space-between}
+    .vhead h1{margin:0;font:700 30px/1 Georgia,"Times New Roman",serif;letter-spacing:-.04em}
+    .badge{padding:8px 12px;border-radius:999px;background:#D4AF3718;color:var(--gold);font-size:11px;font-weight:850}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;padding:0 14px 30px}
+    .tile{position:relative;min-height:290px;border-radius:20px;padding:12px;overflow:hidden;background:linear-gradient(145deg,#141414,#1F1F1F);box-shadow:0 16px 34px #0005}
+    .tile.new{border:1px solid var(--gold);box-shadow:0 16px 34px #0005,0 0 22px #D4AF3714}.tile.seen{background:linear-gradient(145deg,#111,#171717);border:1px solid #555;filter:saturate(.18)}.tile.seen .art img{filter:grayscale(1) brightness(.62) contrast(.92) drop-shadow(0 10px 15px #0008)}.seenbadge{position:absolute;right:12px;top:12px;padding:5px 8px;border-radius:999px;background:#000b;border:1px solid #666;color:#aaa;font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .art{height:210px;display:flex;align-items:center;justify-content:center}
+    .art img{max-width:70%;max-height:70%;object-fit:contain;border-radius:8px;filter:drop-shadow(0 10px 15px #0008)}
+    .name{margin:4px 2px 28px;font:700 14px/1.2 Georgia,"Times New Roman",serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rarity{position:absolute;left:12px;bottom:12px;padding:5px 8px;border-radius:999px;background:#0008;border:1px solid currentColor;font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .common{color:#9CA3AF}.uncommon{color:#22FF88}.rare{color:#60A5FA}.epic{color:#A78BFA}.legendary{color:#FBBF24}.prototype{color:#F97316}
+    .empty{height:calc(100vh - 180px - var(--nav));display:grid;place-items:center;text-align:center;padding:32px;color:#777}
+    .empty svg{width:84px;height:116px;color:#333;margin-bottom:18px}.empty h3{color:#fff;margin:0 0 7px}.empty p{max-width:280px;margin:0;line-height:1.5;font-size:13px}
+    .section{padding:22px 16px 0}.label{margin:0 0 12px;color:var(--gold);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}
+    .card{padding:16px;border-radius:20px;background:var(--s);box-shadow:0 14px 30px #0004}
+    .input{width:100%;height:50px;padding:0 14px;border:1px solid #2b2b2b;border-radius:12px;background:#0e0e0e;color:#fff}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.small{min-height:46px;border-radius:12px;background:var(--s2);font-size:12px;font-weight:850}.gold{background:var(--gold);color:#0A0A0A}
+    .result{min-height:18px;margin-top:12px;color:#888;font-size:12px}.ok{color:var(--green)}.bad{color:var(--danger)}
+    .about{display:flex;justify-content:space-between;color:#888;font-size:13px}.about b{color:#fff}
+    .danger{border:1px solid #ff4d5a20;background:#ff4d5a0d}.dangerbtn{width:100%;min-height:48px;border-radius:12px;background:#ff4d5a18;color:#ff6872;font-size:12px;font-weight:900;letter-spacing:.08em}
+    .navbar{position:fixed;z-index:100;left:0;right:0;bottom:0;height:calc(var(--nav) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(3,1fr);background:#0A0A0A;border-top:1px solid #1F1F1F}
+    .navbar.hide{display:none}.nav{height:var(--nav);display:grid;place-items:center;background:none;color:#666;transition:transform 160ms ease,color 160ms ease}.nav.active{color:var(--gold)}
+    .demo{position:fixed;z-index:1000;right:10px;top:calc(env(safe-area-inset-top) + 10px);padding:5px 8px;border-radius:999px;background:var(--gold);color:#0A0A0A;font-size:9px;font-weight:950;letter-spacing:.12em}
+    .toast{position:fixed;z-index:900;left:50%;bottom:calc(var(--nav) + env(safe-area-inset-bottom) + 18px);transform:translate(-50%,12px);opacity:0;pointer-events:none;max-width:calc(100% - 32px);padding:11px 15px;border-radius:12px;background:#242424;box-shadow:0 14px 35px #0008;font-size:12px;font-weight:750;transition:opacity 180ms ease,transform 180ms ease}.toast.show{opacity:1;transform:translate(-50%,0)}
+    .modal{position:fixed;inset:0;z-index:500;background:#050505f5;display:none;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center}.modal.show{display:flex}.modal h2{margin:0 0 10px;color:var(--gold);font:700 28px Georgia,"Times New Roman",serif}.modal p{max-width:300px;color:#888;font-size:13px;line-height:1.5}.qr{width:250px;height:250px;padding:10px;background:#fff;border-radius:12px;margin:12px 0 20px}
+    @media(min-width:700px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  </style>
+</head>
+<body>
+<div id="app">
+  <section id="screen-home" class="screen active">
+    <button id="settingsOpen" class="iconbtn home-settings" aria-label="Settings">
+      <svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" stroke="currentColor" stroke-width="1.8"/><path d="m19 13.2 1.2.9-1.5 2.6-1.4-.6a7.8 7.8 0 0 1-1.9 1.1l-.2 1.5h-3l-.2-1.5a7.8 7.8 0 0 1-1.9-1.1l-1.4.6-1.5-2.6 1.2-.9a7.7 7.7 0 0 1 0-2.4L6.2 9.9l1.5-2.6 1.4.6A7.8 7.8 0 0 1 11 6.8l.2-1.5h3l.2 1.5a7.8 7.8 0 0 1 1.9 1.1l1.4-.6 1.5 2.6-1.2.9a7.7 7.7 0 0 1 0 2.4Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="home">
+      <h1 class="brand">CARD<br>VISION</h1><p class="sub">AR Card Collection</p>
+      <div class="actions"><button id="scanCta" class="btn primary">Scan a Card</button><button id="vaultCta" class="btn secondary">My Vault</button></div>
+      <div class="status"><span id="statusDot" class="dot"></span><span id="statusText">UNKNOWN</span></div>
+    </div>
+  </section>
+
+  <section id="screen-scan" class="screen">
+    <header class="top"><button id="scanBack" class="iconbtn" aria-label="Back"><svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M15 18 9 12l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><h2 class="title">Scan</h2><button id="flash" class="iconbtn" aria-label="Flashlight"><svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M9 2h6l-1 6h4L8 22l2-10H6l3-10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button></header>
+
+    <!-- AR Overlay Container -->
+    <div id="ar-overlay" style="position: absolute; display: none; pointer-events: none; z-index: 50;">
+      <img id="ar-content" style="width: 100%; height: 100%; object-fit: contain; display: none;" />
+    </div>
+
+  </section>
+
+  <section id="screen-vault" class="screen"><div class="scroll"><header class="top"><button id="vaultBack" class="iconbtn" aria-label="Back"><svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M15 18 9 12l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><h2 class="title">My Vault</h2><span></span></header><div class="vhead"><h1>Collection</h1><span id="count" class="badge">0 cards</span></div><div id="grid" class="grid"></div><div id="empty" class="empty" hidden><div><svg viewBox="0 0 84 116" fill="none"><rect x="9" y="5" width="66" height="106" rx="11" stroke="currentColor" stroke-width="3"/><rect x="19" y="17" width="46" height="57" rx="7" stroke="currentColor" stroke-width="2" stroke-dasharray="4 5"/><path d="M25 91h34" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg><h3>No cards yet</h3><p>Scan one to start your collection.</p></div></div></div></section>
+
+  <section id="screen-settings" class="screen"><div class="scroll"><header class="top"><button id="settingsBack" class="iconbtn" aria-label="Back"><svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M15 18 9 12l6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button><h2 class="title">Settings</h2><span></span></header>
+    <div class="section"><h3 class="label">Server</h3><div class="card"><input id="server" class="input" type="url" inputmode="url" autocomplete="off" spellcheck="false"><div class="row"><button id="save" class="small gold">Save</button><button id="test" class="small">Test Connection</button></div><div id="result" class="result"></div></div></div>
+    <div class="section"><h3 class="label">About</h3><div class="card"><div class="about"><span>App version</span><b>1.0.0</b></div></div></div>
+    <div class="section"><h3 class="label">Danger zone</h3><div class="card danger"><button id="clear" class="dangerbtn">Clear Vault</button></div></div>
+  </div></section>
+
+  <nav id="nav" class="navbar"><button class="nav active" data-screen="home" aria-label="Home"><svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M3.5 10.5 12 3l8.5 7.5v10H14.5V14h-5v6.5h-6v-10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button><button class="nav" data-screen="scan" aria-label="Scan"><svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M7 3H4.5A1.5 1.5 0 0 0 3 4.5V7M17 3h2.5A1.5 1.5 0 0 1 21 4.5V7M7 21H4.5A1.5 1.5 0 0 1 3 19.5V17M17 21h2.5a1.5 1.5 0 0 0 1.5-1.5V17M6 12h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button><button class="nav" data-screen="vault" aria-label="Vault"><svg class="icon" viewBox="0 0 24 24" fill="none"><path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5V19H4V6.5Z" stroke="currentColor" stroke-width="1.8"/><path d="M4 9h16M8 5v4M8 13h8M8 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></nav>
+  <div id="demo" class="demo" hidden>DEMO</div><div id="toast" class="toast"></div>
+  <div id="tradeModal" class="modal"><h2>P2P Transfer</h2><p>Have the receiving player scan this code to transfer ownership.</p><img id="qr" class="qr" alt="Transfer QR"><button id="cancelTrade" class="btn secondary" style="width:min(320px,100%)">Cancel Trade</button></div>
+</div>
+
+<script>
+  (()=>{"use strict";
+  const native=!!window.CardVision;
+  if(!native){
+   let url="https://demo.cardvision.local";
+   const grad=(a,b)=>"data:image/svg+xml;charset=utf-8,"+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="840"><defs><linearGradient id="g"><stop stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect x="8" y="8" width="584" height="824" rx="42" fill="url(#g)"/><rect x="22" y="22" width="556" height="796" rx="32" fill="none" stroke="white" stroke-opacity=".25" stroke-width="3"/><text x="50" y="90" fill="white" font-family="Georgia" font-size="32" font-weight="bold">CARD VISION</text></svg>`);
+   const cards=[["demo1","Aether Scout","common","#0B132B","#5BC0BE"],["demo2","Solar Warden","rare","#171717","#60A5FA"],["demo3","Moonlit Oracle","epic","#17100A","#A78BFA"],["demo4","Golden Vanguard","legendary","#271A05","#FBBF24"]].map((x,i)=>({id:x[0],name:x[1],rarity:x[2],description:"Demo card",renderDataUri:grad(x[3],x[4]),unlockedAt:Date.now()-i*3600000}));
+   window.CardVision={__mock:true,getVaultCards:()=>JSON.stringify(cards),getServerUrl:()=>url,setServerUrl:v=>{url=v},getServerStatus:()=> "online",startScan:()=>{},stopScan:()=>{},toggleFlashlight:()=>{},clearVault:()=>{cards.length=0;renderVault()},testConnection:()=>setTimeout(()=>window.CardVision._connResult(true,"Connected — 1 card on server"),600),playClickSound:()=>{},setHologramState:()=>{},initiateTrade:()=>{},cancelTrade:()=>{}};
+  }
+  const $=id=>document.getElementById(id), screens=["home","scan","vault","settings"];let current="home",toastTimer=0;
+
+  function call(name, ...args) {
+    if (!window.CardVision || window.CardVision.__mock) {
+        if(window.CardVision && typeof window.CardVision[name] === 'function') return window.CardVision[name](...args);
+        return;
+    }
+    try {
+        switch(name) {
+            case "startScan": return window.CardVision.startScan();
+            case "stopScan": return window.CardVision.stopScan();
+            case "getServerStatus": return window.CardVision.getServerStatus();
+            case "getVaultCards": return window.CardVision.getVaultCards();
+            case "getServerUrl": return window.CardVision.getServerUrl();
+            case "setServerUrl": return window.CardVision.setServerUrl(args[0]);
+            case "toggleFlashlight": return window.CardVision.toggleFlashlight();
+            case "clearVault": return window.CardVision.clearVault();
+            case "testConnection": return window.CardVision.testConnection();
+            case "initiateTrade": return window.CardVision.initiateTrade(args[0]);
+            case "cancelTrade": return window.CardVision.cancelTrade();
+            case "setHologramState": return window.CardVision.setHologramState(args[0]);
+            default: return window.CardVision[name] && window.CardVision[name](...args);
+        }
+    } catch(e) {
+        console.error("Bridge Error:", name, e);
+    }
+  }
+
+  function toast(s){clearTimeout(toastTimer);$("toast").textContent=s;$("toast").classList.add("show");toastTimer=setTimeout(()=>$("toast").classList.remove("show"),2200)}
+  function navigate(next){if(!screens.includes(next)||next===current)return;if(current==="scan")call("stopScan");$("screen-"+current).classList.remove("active");$("screen-"+next).classList.add("active");current=next;$("nav").classList.toggle("hide",next==="scan");document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("active",b.dataset.screen===next));if(next==="scan")call("startScan");if(next==="vault")renderVault();if(next==="settings")loadSettings();if(next==="home")status()}
+  function status(){const s=call("getServerStatus"),d=$("statusDot"),t=$("statusText");d.className="dot "+(s==="online"?"on":s==="offline"?"off":"");t.textContent=s==="online"?"CONNECTED":s==="offline"?"OFFLINE":"UNKNOWN"}
+  function cards(){try{const x=call("getVaultCards");const y=Array.isArray(x)?x:JSON.parse(x||"[]");return Array.isArray(y)?y:[]}catch(e){console.error(e);return[]}}
+  function rarity(r){r=String(r||"common").toLowerCase();return ["common","uncommon","rare","epic","legendary","prototype"].includes(r)?r:"common"}
+  function renderVault(){const list=cards(),g=$("grid");g.innerHTML="";$("count").textContent=`${list.length} ${list.length===1?"card":"cards"}`;$("empty").hidden=list.length>0;list.forEach(c=>{const owned=!!c.isOwned;const seen=!owned&&!!c.isSeen;const el=document.createElement("article");el.className="tile"+(owned&&c.unlockedAt&&Date.now()-new Date(c.unlockedAt).getTime()<86400000?" new":"")+(seen?" seen":"");const a=document.createElement("div");a.className="art";const im=document.createElement("img");im.alt=String(c.name||c.id||"Card");im.src=String(c.renderDataUri||"");im.onerror=()=>{im.style.display="none"};a.appendChild(im);el.appendChild(a);const n=document.createElement("div");n.className="name";n.textContent=String(c.name||c.id||"Unknown card");el.appendChild(n);if(seen){const sb=document.createElement("span");sb.className="seenbadge";sb.textContent="Seen";el.appendChild(sb)}if(owned){const trade=document.createElement("button");trade.className="small gold";trade.textContent="Trade";trade.style.cssText="position:absolute;right:12px;bottom:10px;min-height:28px;padding:0 9px;border-radius:999px;font-size:9px;font-weight:900;letter-spacing:.08em;text-transform:uppercase";trade.onclick=()=>{call("initiateTrade",String(c.id));};el.appendChild(trade)}const chip=document.createElement("span");const rr=rarity(c.rarity);chip.className="rarity "+rr;chip.textContent=rr;el.appendChild(chip);g.appendChild(el)})}
+  function loadSettings(){const v=call("getServerUrl");$("server").value=typeof v==="string"?v:"";$("result").textContent="";$("result").className="result"}
+
+  if (!window.CardVisionUI) {
+      window.CardVisionUI = { showToast: toast, refreshVault: renderVault, showTradeModal: q => { $("qr").src = q; $("tradeModal").classList.add("show"); } };
+  }
+  if (!window.CardVision) window.CardVision = {};
+  window.CardVision._connResult = (ok, msg) => { $("result").className = "result " + (ok ? "ok" : "bad"); $("result").textContent = msg || (ok ? "Connected" : "Failed"); };
+
+  $("scanCta").onclick=()=>navigate("scan");$("vaultCta").onclick=()=>navigate("vault");$("settingsOpen").onclick=()=>navigate("settings");$("scanBack").onclick=()=>navigate("home");$("vaultBack").onclick=()=>navigate("home");$("settingsBack").onclick=()=>navigate("home");$("flash").onclick=()=>call("toggleFlashlight");
+  document.querySelectorAll(".nav").forEach(b=>b.onclick=()=>navigate(b.dataset.screen));
+  $("save").onclick=()=>{const v=$("server").value.trim();if(!v)return toast("Enter a server URL.");call("setServerUrl",v);toast("Server URL saved.")};
+
+  $("test").onclick = () => {
+      $("result").className = "result";
+      $("result").textContent = "Testing connection…";
+      call("testConnection");
+  };
+
+  $("clear").onclick=()=>{if(confirm("Clear your entire vault? This cannot be undone.")){call("clearVault");renderVault();toast("Vault cleared.")}};
+  $("cancelTrade").onclick=()=>{call("cancelTrade");$("tradeModal").classList.remove("show")};
+  window.addEventListener("cardvision:vaultChanged",renderVault);
+  if(window.CardVision.__mock)$("demo").hidden=false;
+
+  // AR Renderer Engine
+  window.CVOverlay = {
+      animTimer: null,
+      animFrames: [],
+      currentCardId: null,
+
+      update: function(corners) {
+          const overlay = document.getElementById('ar-overlay');
+          if (!overlay) return;
+          if (!corners || corners.length < 4) {
+              // Only hide the overlay if we've completely lost tracking.
+              // If frames are actively animating, we keep it visible but maybe stop moving it.
+              overlay.style.display = 'none';
+              return;
+          }
+          let minX = Math.min(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+          let maxX = Math.max(corners[0].x, corners[1].x, corners[2].x, corners[3].x);
+          let minY = Math.min(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+          let maxY = Math.max(corners[0].y, corners[1].y, corners[2].y, corners[3].y);
+
+          overlay.style.left = (minX * 100) + '%';
+          overlay.style.top = (minY * 100) + '%';
+          overlay.style.width = ((maxX - minX) * 100) + '%';
+          overlay.style.height = ((maxY - minY) * 100) + '%';
+
+          if (this.animFrames.length > 0) {
+              overlay.style.display = 'block';
+          }
+      },
+
+      showCard: function(cardData) {
+          if (!cardData) return;
+          this.currentCardId = cardData.id;
+      },
+
+      hideCard: function() {
+          this.currentCardId = null;
+          this.animFrames = [];
+          if (this.animTimer) {
+              clearInterval(this.animTimer);
+              this.animTimer = null;
+          }
+          const overlay = document.getElementById('ar-overlay');
+          if (overlay) overlay.style.display = 'none';
+          call("setHologramState", false);
+      },
+
+      setRenderData: function(url) {
+          // Ignored. Kept for backwards compatibility with the native bridge calls.
+      },
+
+      registerAnimation: function(cardId, name, urlOrBundle) {
+          console.log("CARD_ANIM register:", cardId, name, typeof urlOrBundle === 'string' ? urlOrBundle.substring(0, 50) : 'bundle object');
+
+          if (this.currentCardId !== cardId) {
+              console.log("CARD_ANIM ignored - card mismatch. Current:", this.currentCardId, " Anim:", cardId);
+              return;
+          }
+
+          if (typeof urlOrBundle === 'string' && urlOrBundle.startsWith('http')) {
+              console.log("CARD_ANIM fetching:", urlOrBundle);
+              fetch(urlOrBundle)
+                  .then(res => {
+                      if (!res.ok) throw new Error("HTTP " + res.status);
+                      return res.json();
+                  })
+                  .then(payload => this.applyAnimation(payload))
+                  .catch(err => {
+                      console.error("CARD_ANIM fetch failed:", err);
+                      call("setHologramState", false);
+                  });
+          } else {
+              this.applyAnimation(urlOrBundle);
+          }
+      },
+
+      applyAnimation: function(payload) {
+          console.log("CARD_ANIM payload received.");
+          if (!payload) return;
+
+          let frames = [];
+          if (payload.frames && Array.isArray(payload.frames)) {
+              frames = payload.frames;
+          } else if (Array.isArray(payload)) {
+              frames = payload;
+          }
+
+          console.log("CARD_ANIM frames:", frames.length);
+          if (!frames.length) return;
+
+          const overlay = document.getElementById('ar-overlay');
+          const img = document.getElementById('ar-content');
+          if (!overlay || !img) {
+              console.error("CARD_ANIM missing overlay or img elements");
+              return;
+          }
+
+          this.animFrames = frames;
+          let fps = (payload.meta && payload.meta.fps) ? payload.meta.fps : 15;
+          let intervalMs = Math.round(1000 / fps);
+
+          if (this.animTimer) {
+              clearInterval(this.animTimer);
+              this.animTimer = null;
+          }
+
+          let currentFrame = 0;
+          overlay.style.display = 'block';
+          const firstFrame = frames[0];
+
+          img.onload = () => {
+              console.log("CARD_ANIM first frame rendered:", img.naturalWidth, img.naturalHeight);
+              img.style.display = 'block';
+
+              // ONLY tell native to hide fallback renderer AFTER first frame successfully loads
+              call("setHologramState", true);
+
+              this.animTimer = setInterval(() => {
+                  if (!this.animFrames.length) return;
+                  img.src = this.animFrames[currentFrame];
+                  currentFrame = (currentFrame + 1) % this.animFrames.length;
+              }, intervalMs);
+          };
+
+          img.onerror = () => {
+              console.error("CARD_ANIM first frame FAILED");
+              call("setHologramState", false);
+          };
+
+          img.src = firstFrame;
+      }
+  };
+
+  // Re-enable click sounds globally for all UI buttons and vault tiles
+  document.body.addEventListener("click", (e) => {
+      if (e.target.closest("button, .nav, #scanCta, #vaultCta, #settingsOpen, #scanBack, #vaultBack, #settingsBack, #flash, .tile")) {
+          call("playClickSound");
+      }
+  });
+
+  status();
+  setInterval(status, 1500);
+  })();
+</script>
+</body>
+</html>

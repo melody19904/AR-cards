@@ -38,3 +38,8 @@ desktop.ini
 .cache/
 tmp/
 temp/
+
+# Android build artifacts
+*.apk
+*.aab
+

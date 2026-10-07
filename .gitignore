@@ -24,3 +24,6 @@ __pycache__/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Exclude local scripts
+mint.py

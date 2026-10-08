@@ -1,4 +1,4 @@
-package com.example.cardengine
+﻿package com.example.cardengine
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -62,12 +62,16 @@ import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.UUID
 import com.example.cardengine.util.SoundManager
+import com.example.cardengine.experience.ExperienceResolver
+import com.example.cardengine.experience.FloatingWebExperienceView
 
 class MainActivity : AppCompatActivity(), WebAppBridge.Host {
 
     private lateinit var root: FrameLayout
     private lateinit var previewView: PreviewView
     private lateinit var renderView: RenderOverlayView
+    private lateinit var floatingExperience: FloatingWebExperienceView
+    private val experienceResolver by lazy { ExperienceResolver { serverUrl } }
     private lateinit var webView: WebView
 
     private lateinit var vault: VaultHelper
@@ -151,6 +155,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
             visibility = View.GONE
         }
         renderView = RenderOverlayView(this).apply { visibility = View.GONE }
+        floatingExperience = FloatingWebExperienceView(this)
 
         webView = WebView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
@@ -213,6 +218,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
         root.addView(previewView, lp)
         root.addView(renderView, lp)
         root.addView(webView, lp)
+        root.addView(floatingExperience, lp)
         setContentView(root)
 
         bgExecutor.execute { syncCatalog() }
@@ -557,6 +563,8 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                             val isCardVisionUrl = rawValue.startsWith("cardvision://claim") || rawValue.startsWith("cardvision://transfer")
                             if (isCardVisionUrl) {
                                 handleQrClaim(rawValue)
+                            } else {
+                                handleGenericTarget(rawValue)
                             }
                         }
                     }
@@ -832,6 +840,30 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
             processingQrs.remove(url)
         }
     }
+    private val processingTargets = mutableSetOf<String>()
+
+    private fun handleGenericTarget(rawValue: String) {
+        if (!processingTargets.add(rawValue)) return
+        if (shuttingDown || bgExecutor.isShutdown) { processingTargets.remove(rawValue); return }
+
+        try {
+            bgExecutor.execute {
+                try {
+                    val experience = experienceResolver.resolve(rawValue)
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) {
+                            floatingExperience.show(experience)
+                        }
+                    }
+                } finally {
+                    processingTargets.remove(rawValue)
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            processingTargets.remove(rawValue)
+        }
+    }
+
 
     private fun sendCornersToJs(corners: FloatArray, fw: Int, fh: Int) {
         val vw = previewView.width.toFloat()
@@ -1174,7 +1206,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                         serverStatus = "online"
                         val body = response.body?.string().orEmpty()
                         val count = try { JSONArray(body).length() } catch (_: Exception) { 0 }
-                        val msg = JSONObject.quote("Connected — $count card${if (count == 1) "" else "s"} on server")
+                        val msg = JSONObject.quote("Connected â€” $count card${if (count == 1) "" else "s"} on server")
                         runOnUiThread {
                             webView.evaluateJavascript(
                                 "window.CardVision && window.CardVision._connResult(true, $msg)",

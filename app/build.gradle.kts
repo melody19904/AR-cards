@@ -1,4 +1,4 @@
-import java.io.FileInputStream
+﻿import java.io.FileInputStream
 import java.util.Properties
 
 plugins {
@@ -17,7 +17,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.cardengine"
+        applicationId = "com.example.scann3d"
         minSdk = 24
         targetSdk = 34
         versionCode = 1

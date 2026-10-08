@@ -1,6 +1,0 @@
-# Default owners for everything in the repo, unless a later match takes precedence.
-*                           @melody19904
-
-# Native app core — extra review on the high-risk areas called out in CONTRIBUTING.md
-/android/app/src/main/java/ @melody19904
-/server/                    @melody19904

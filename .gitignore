@@ -1,45 +1,45 @@
-﻿.gradle/
+﻿# Android / Gradle
+.gradle/
 build/
-*/build/
-captures/
-.externalNativeBuild/
-.cxx/
+**/build/
+
+# Android Studio / IntelliJ
 .idea/
 *.iml
-*.iws
 *.ipr
+*.iws
+
+# Local machine configuration
 local.properties
+
+# Generated outputs
+out/
+captures/
+
+# APK / AAB
+*.apk
+*.aab
+*.apks
+
+# Native / CMake
+.externalNativeBuild/
+.cxx/
+
+# Kotlin
+.kotlin/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Secrets / local environment
 .env
 .env.*
 !.env.example
-*.jks
-*.keystore
-*.p12
-*.pfx
-secrets/
-credentials/
-*.pem
-*.key
-__pycache__/
-*.py[cod]
-.venv/
-venv/
-env/
-node_modules/
-.DS_Store
-Thumbs.db
-desktop.ini
-*.tmp
-*.temp
-*.log
-*.zip
-*.7z
-*.rar
-.cache/
-tmp/
-temp/
-
-# Android build artifacts
-*.apk
-*.aab
-

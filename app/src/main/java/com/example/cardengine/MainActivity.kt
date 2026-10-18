@@ -33,18 +33,20 @@ import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import com.example.cardengine.core.RecognitionResult
+import com.example.cardengine.experience.ExperienceResolver
+import com.example.cardengine.experience.FloatingWebExperienceView
+import com.example.cardengine.recognition.RecognitionEngine
+import com.example.cardengine.util.SoundManager
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import org.opencv.android.OpenCVLoader
@@ -56,14 +58,10 @@ import org.opencv.imgcodecs.Imgcodecs
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.IOException
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.TimeUnit
-import java.util.UUID
-import com.example.cardengine.util.SoundManager
-import com.example.cardengine.experience.ExperienceResolver
-import com.example.cardengine.experience.FloatingWebExperienceView
 
 class MainActivity : AppCompatActivity(), WebAppBridge.Host {
 
@@ -71,7 +69,8 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
     private lateinit var previewView: PreviewView
     private lateinit var renderView: RenderOverlayView
     private lateinit var floatingExperience: FloatingWebExperienceView
-    private val experienceResolver by lazy { ExperienceResolver { serverUrl } }
+    private val experienceResolver by lazy { ExperienceResolver(serverUrlProvider = { serverUrl }) }
+    private val recognitionEngine = RecognitionEngine()
     private lateinit var webView: WebView
 
     private lateinit var vault: VaultHelper
@@ -91,6 +90,9 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
     private val seenDir by lazy { File(filesDir, "seen").apply { mkdirs() } }
 
     private val processingQrs = mutableSetOf<String>()
+    private val processingTargets = mutableSetOf<String>()
+    @Volatile private var dismissedTargetId: String? = null
+    @Volatile private var lastDismissedSeenMs: Long = 0L
 
     private var activeTradeCardId: String? = null
     private var activeTradeToken: String? = null
@@ -155,7 +157,12 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
             visibility = View.GONE
         }
         renderView = RenderOverlayView(this).apply { visibility = View.GONE }
-        floatingExperience = FloatingWebExperienceView(this)
+        floatingExperience = FloatingWebExperienceView(this).apply {
+            onUserDismissed = { dismissedId ->
+                dismissedTargetId = dismissedId
+                lastDismissedSeenMs = System.currentTimeMillis()
+            }
+        }
 
         webView = WebView(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
@@ -197,7 +204,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                         if (segments.size >= 3) {
                             val cardId = segments[1]
                             val animName = segments[2].removeSuffix(".json")
-                            val bundleStr = onGetAnimation(cardId, animName) // Force cache-first validation
+                            val bundleStr = onGetAnimation(cardId, animName)
 
                             return if (bundleStr != null) {
                                 WebResourceResponse("application/json", "UTF-8", 200, "OK", corsHeaders, ByteArrayInputStream(bundleStr.toByteArray(Charsets.UTF_8)))
@@ -416,155 +423,160 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
     @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
     private fun analyze(image: ImageProxy) {
         val eng = engine
-        if (eng == null) {
-            image.close()
-            return
-        }
+        if (eng != null) {
+            try {
+                val w = image.width
+                val h = image.height
+                val plane = image.planes[0]
+                val buf = plane.buffer
+                val stride = plane.rowStride
+                if (bytes.size != w * h) bytes = ByteArray(w * h)
+                if (stride == w) buf.get(bytes, 0, w * h)
+                else for (r in 0 until h) { buf.position(r * stride); buf.get(bytes, r * w, w) }
+                raw.create(h, w, CvType.CV_8UC1)
+                raw.put(0, 0, bytes)
 
-        var openCvCrashed = false
-
-        try {
-            val w = image.width
-            val h = image.height
-            val plane = image.planes[0]
-            val buf = plane.buffer
-            val stride = plane.rowStride
-            if (bytes.size != w * h) bytes = ByteArray(w * h)
-            if (stride == w) buf.get(bytes, 0, w * h)
-            else for (r in 0 until h) { buf.position(r * stride); buf.get(bytes, r * w, w) }
-            raw.create(h, w, CvType.CV_8UC1)
-            raw.put(0, 0, bytes)
-
-            when (image.imageInfo.rotationDegrees) {
-                90 -> Core.rotate(raw, upright, Core.ROTATE_90_CLOCKWISE)
-                180 -> Core.rotate(raw, upright, Core.ROTATE_180)
-                270 -> Core.rotate(raw, upright, Core.ROTATE_90_COUNTERCLOCKWISE)
-                else -> raw.copyTo(upright)
-            }
-
-            val result = eng.process(upright)
-
-            val corners = result.corners
-            if (corners != null) {
-                val key = corners.joinToString(",")
-                if (key != lastSentCornerKey) {
-                    lastSentCornerKey = key
-                    runOnUiThread {
-                        if (!hologramActive) {
-                            renderView.visibility = View.VISIBLE
-                            renderView.setQuad(corners, upright.cols(), upright.rows())
-                        }
-                        sendCornersToJs(corners, upright.cols(), upright.rows())
-                    }
-                }
-            } else {
-                if (lastSentCornerKey.isNotEmpty()) {
-                    lastSentCornerKey = ""
-                    runOnUiThread {
-                        renderView.setQuad(null, upright.cols(), upright.rows())
-                        webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.update(null);", null)
-                    }
-                }
-            }
-
-            val id = result.cardId
-            if (id != null && id != lastShownCardId) {
-                lastShownCardId = id
-                SoundManager.playScan()
-                markCardAsSeen(id)
-
-                val m = metaById[id]
-                val inVault = vault.isUnlocked(id)
-                val isSeen = !inVault
-
-                runOnUiThread {
-                    val json = JSONObject()
-                        .put("id", id)
-                        .put("name", m?.name ?: id)
-                        .put("rarity", m?.rarity ?: "")
-                        .put("description", m?.description ?: "")
-                        .put("inVault", inVault)
-                        .put("isOwned", inVault)
-                        .put("isSeen", isSeen)
-                    webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.showCard($json);", null)
+                when (image.imageInfo.rotationDegrees) {
+                    90 -> Core.rotate(raw, upright, Core.ROTATE_90_CLOCKWISE)
+                    180 -> Core.rotate(raw, upright, Core.ROTATE_180)
+                    270 -> Core.rotate(raw, upright, Core.ROTATE_90_COUNTERCLOCKWISE)
+                    else -> raw.copyTo(upright)
                 }
 
-                if (id != lastRequestedRenderId) {
-                    lastRequestedRenderId = id
-                    if (!shuttingDown && !bgExecutor.isShutdown) {
-                        try {
-                            bgExecutor.execute {
-                                val cardSeenDir = File(seenDir, id).apply { mkdirs() }
+                val result = eng.process(upright)
 
-                                var renderBytes = getOfflineRender(id)
-                                if (renderBytes == null) {
-                                    renderBytes = catalog?.fetchRenderBytes(id)
-                                    if (renderBytes != null) {
-                                        File(cardSeenDir, "render.png").writeBytes(renderBytes)
-                                    }
-                                }
-
-                                val refFile = File(cardSeenDir, "reference.jpg")
-                                if (!refFile.exists()) {
-                                    catalog?.fetchReferenceBytes(id)?.let { refFile.writeBytes(it) }
-                                }
-
-                                val metaFile = File(cardSeenDir, "meta.json")
-                                if (!metaFile.exists()) {
-                                    val json = JSONObject().apply {
-                                        put("id", id)
-                                        put("name", m?.name ?: id)
-                                        put("rarity", m?.rarity ?: "")
-                                        put("description", m?.description ?: "")
-                                    }
-                                    metaFile.writeText(json.toString())
-                                }
-
-                                if (renderBytes != null) {
-                                    val bmp = BitmapFactory.decodeByteArray(renderBytes, 0, renderBytes.size)
-                                    val renderUrl = "https://cardvision.local/render/$id"
-                                    runOnUiThread {
-                                        if (bmp != null) renderView.setRender(bmp)
-                                        webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.setRenderData('${renderUrl}');", null)
-                                    }
-                                }
+                val corners = result.corners
+                if (corners != null) {
+                    val key = corners.joinToString(",")
+                    if (key != lastSentCornerKey) {
+                        lastSentCornerKey = key
+                        runOnUiThread {
+                            if (!hologramActive) {
+                                renderView.visibility = View.VISIBLE
+                                renderView.setQuad(corners, upright.cols(), upright.rows())
                             }
-                        } catch (_: RejectedExecutionException) {}
+                            sendCornersToJs(corners, upright.cols(), upright.rows())
+                        }
+                    }
+                } else {
+                    if (lastSentCornerKey.isNotEmpty()) {
+                        lastSentCornerKey = ""
+                        runOnUiThread {
+                            renderView.setQuad(null, upright.cols(), upright.rows())
+                            webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.update(null);", null)
+                        }
                     }
                 }
 
-                if (id != lastPreloadedAnimsForCard) {
-                    lastPreloadedAnimsForCard = id
-                    loadAnimationsForCard(id)
+                val id = result.cardId
+                if (id != null && id != lastShownCardId) {
+                    lastShownCardId = id
+                    SoundManager.playScan()
+                    markCardAsSeen(id)
+
+                    val m = metaById[id]
+                    val inVault = vault.isUnlocked(id)
+                    val isSeen = !inVault
+
+                    runOnUiThread {
+                        val json = JSONObject()
+                            .put("id", id)
+                            .put("name", m?.name ?: id)
+                            .put("rarity", m?.rarity ?: "")
+                            .put("description", m?.description ?: "")
+                            .put("inVault", inVault)
+                            .put("isOwned", inVault)
+                            .put("isSeen", isSeen)
+                        webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.showCard($json);", null)
+                    }
+
+                    if (id != lastRequestedRenderId) {
+                        lastRequestedRenderId = id
+                        if (!shuttingDown && !bgExecutor.isShutdown) {
+                            try {
+                                bgExecutor.execute {
+                                    val cardSeenDir = File(seenDir, id).apply { mkdirs() }
+
+                                    var renderBytes = getOfflineRender(id)
+                                    if (renderBytes == null) {
+                                        renderBytes = catalog?.fetchRenderBytes(id)
+                                        if (renderBytes != null) {
+                                            File(cardSeenDir, "render.png").writeBytes(renderBytes)
+                                        }
+                                    }
+
+                                    val refFile = File(cardSeenDir, "reference.jpg")
+                                    if (!refFile.exists()) {
+                                        catalog?.fetchReferenceBytes(id)?.let { refFile.writeBytes(it) }
+                                    }
+
+                                    val metaFile = File(cardSeenDir, "meta.json")
+                                    if (!metaFile.exists()) {
+                                        val json = JSONObject().apply {
+                                            put("id", id)
+                                            put("name", m?.name ?: id)
+                                            put("rarity", m?.rarity ?: "")
+                                            put("description", m?.description ?: "")
+                                        }
+                                        metaFile.writeText(json.toString())
+                                    }
+
+                                    if (renderBytes != null) {
+                                        val bmp = BitmapFactory.decodeByteArray(renderBytes, 0, renderBytes.size)
+                                        val renderUrl = "https://cardvision.local/render/$id"
+                                        runOnUiThread {
+                                            if (bmp != null) renderView.setRender(bmp)
+                                            webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.setRenderData('${renderUrl}');", null)
+                                        }
+                                    }
+                                }
+                            } catch (_: RejectedExecutionException) {}
+                        }
+                    }
+
+                    if (id != lastPreloadedAnimsForCard) {
+                        lastPreloadedAnimsForCard = id
+                        loadAnimationsForCard(id)
+                    }
+                } else if (id == null && lastShownCardId != null) {
+                    lastShownCardId = null
+                    runOnUiThread { webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.hideCard();", null) }
                 }
-            } else if (id == null && lastShownCardId != null) {
-                lastShownCardId = null
-                runOnUiThread { webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.hideCard();", null) }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-            openCvCrashed = true
-        }
-
-        if (openCvCrashed) {
-            image.close()
-            return
         }
 
         val mediaImage = image.image
         if (mediaImage != null) {
             try {
-                val inputImage = InputImage.fromMediaImage(mediaImage, image.imageInfo.rotationDegrees)
+                val rot = image.imageInfo.rotationDegrees
+                val fw = if (rot == 90 || rot == 270) image.height else image.width
+                val fh = if (rot == 90 || rot == 270) image.width else image.height
+                val inputImage = InputImage.fromMediaImage(mediaImage, rot)
+
                 scanner.process(inputImage)
                     .addOnSuccessListener { barcodes ->
                         for (barcode in barcodes) {
                             val rawValue = barcode.rawValue ?: continue
-                            val isCardVisionUrl = rawValue.startsWith("cardvision://claim") || rawValue.startsWith("cardvision://transfer")
+                            val isCardVisionUrl =
+                                rawValue.startsWith("cardvision://claim") ||
+                                rawValue.startsWith("cardvision://transfer")
+
                             if (isCardVisionUrl) {
                                 handleQrClaim(rawValue)
                             } else {
-                                handleGenericTarget(rawValue)
+                                val pts = barcode.cornerPoints
+                                val cornerFloats = if (pts != null && pts.size == 4) {
+                                    FloatArray(8) { i ->
+                                        if (i % 2 == 0) pts[i / 2].x.toFloat() else pts[i / 2].y.toFloat()
+                                    }
+                                } else null
+
+                                val recResult = recognitionEngine.processQr(rawValue, cornerFloats, fw, fh)
+                                if (recResult != null) {
+                                    handleGenericRecognition(recResult)
+                                }
                             }
                         }
                     }
@@ -600,73 +612,41 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
         try {
             bgExecutor.execute {
                 try {
-                    Log.d("CARD_ANIM", "Loading card=$cardId")
-
                     val networkNames = try { catalog?.fetchAnimationNames(cardId) ?: emptyList() } catch (_: Exception) { emptyList() }
                     val localNames = vaultStore.listAnimations(cardId)
                     val sessionFiles = animCacheDir.listFiles { _, name -> name.startsWith("$cardId-") && name.endsWith(".json") }
                     val sessionNames = sessionFiles?.map { it.name.removePrefix("$cardId-").removeSuffix(".json") } ?: emptyList()
 
                     val canonicalNames = (networkNames + localNames + sessionNames).distinct()
-                    Log.d("CARD_ANIM", "Canonical names=$canonicalNames")
-
-                    if (canonicalNames.isEmpty()) {
-                        return@execute
-                    }
+                    if (canonicalNames.isEmpty()) return@execute
 
                     for (name in canonicalNames) {
-
                         val cacheKey = "$cardId-$name.json"
                         val diskFile = File(animCacheDir, cacheKey)
 
-                        // 1. Session/Disk Cache
                         if (diskFile.exists() && diskFile.length() > 0L) {
                             val bundle = try { diskFile.readText() } catch (_: Exception) { null }
-
                             if (!bundle.isNullOrBlank() && isValidAnimationBundle(bundle)) {
-                                Log.d("CARD_ANIM", "Cache hit card=$cardId anim=$name")
-
-                                // Claim-after-seen cache promotion
                                 if (vault.isUnlocked(cardId) && vaultStore.getAnimation(cardId, name).isNullOrBlank()) {
-                                    try {
-                                        vaultStore.saveAnimation(cardId, name, bundle)
-                                        Log.d("CARD_ANIM", "Promoted cache -> VaultStore card=$cardId anim=$name")
-                                    } catch (e: Exception) {
-                                        Log.e("CARD_ANIM", "Failed promoting animation", e)
-                                    }
+                                    try { vaultStore.saveAnimation(cardId, name, bundle) } catch (_: Exception) {}
                                 }
-
-                                injectAnimation(cardId, name,bundle)
+                                injectAnimation(cardId, name, bundle)
                                 continue
                             }
                         }
 
-                        // 2. Permanent VaultStore Cache
                         val stored = vaultStore.getAnimation(cardId, name)
                         if (!stored.isNullOrBlank() && isValidAnimationBundle(stored)) {
-                            Log.d("CARD_ANIM", "VaultStore hit card=$cardId anim=$name")
-
                             try {
                                 diskFile.parentFile?.mkdirs()
                                 diskFile.writeText(stored)
                             } catch (_: Exception) {}
-
                             injectAnimation(cardId, name, stored)
                             continue
                         }
 
-                        // 3. Network Fetch
-                        Log.d("CARD_ANIM", "Fetching card=$cardId anim=$name")
                         val bundle = try { catalog?.fetchAnimationBundle(cardId, name) } catch (_: Exception) { null }
-
-                        if (bundle.isNullOrBlank()) continue
-
-                        Log.d("CARD_ANIM", "Bundle length=${bundle.length}")
-
-                        if (!isValidAnimationBundle(bundle)) {
-                            Log.d("CARD_ANIM", "Invalid animation bundle card=$cardId anim=$name")
-                            continue
-                        }
+                        if (bundle.isNullOrBlank() || !isValidAnimationBundle(bundle)) continue
 
                         try {
                             diskFile.parentFile?.mkdirs()
@@ -677,23 +657,16 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                             try { vaultStore.saveAnimation(cardId, name, bundle) } catch (_: Exception) {}
                         }
 
-                        Log.d("CARD_ANIM", "Injecting card=$cardId anim=$name")
                         injectAnimation(cardId, name, bundle)
                     }
-
                 } catch (_: Exception) {}
             }
         } catch (_: RejectedExecutionException) {}
     }
 
-    private fun injectAnimation(
-        cardId: String,
-        name: String,
-        bundle: String
-    ) {
+    private fun injectAnimation(cardId: String, name: String, bundle: String) {
         runOnUiThread {
             if (shuttingDown || isFinishing || isDestroyed) return@runOnUiThread
-
             webView.evaluateJavascript(
                 "window.CVOverlay && window.CVOverlay.registerAnimation(" +
                         "${JSONObject.quote(cardId)}," +
@@ -722,12 +695,8 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
 
                         var reference = ByteArray(0)
                         val seenRef = File(File(seenDir, cardId), "reference.jpg")
-                        if (seenRef.exists()) {
-                            reference = seenRef.readBytes()
-                        }
-                        if (reference.isEmpty()) {
-                            reference = catalog?.fetchReferenceBytes(cardId) ?: ByteArray(0)
-                        }
+                        if (seenRef.exists()) reference = seenRef.readBytes()
+                        if (reference.isEmpty()) reference = catalog?.fetchReferenceBytes(cardId) ?: ByteArray(0)
 
                         if (render.isNotEmpty() && reference.isNotEmpty()) {
                             vaultStore.saveCard(
@@ -751,8 +720,6 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
 
                             loadAnimationsForCard(cardId)
                             runOnUiThread { webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.refreshVault();", null) }
-                        } else {
-                            Log.e("CardVision", "Failed to retrieve permanent assets for claim $cardId")
                         }
                     }
                 } catch (_: RejectedExecutionException) {}
@@ -798,13 +765,12 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                                     runOnUiThread { webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.showToast('Trade Failed: QR is invalid or expired.');", null) }
                                 }
                             }
-                        } catch(e: Exception) {
+                        } catch (e: Exception) {
                             processingQrs.remove(url)
                             runOnUiThread { webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.showToast('Trade Error: Network unreachable.');", null) }
                         }
                     }
                 } catch (_: RejectedExecutionException) {}
-                return
             } else {
                 val secret = uri.getQueryParameter("secret")
                 if (secret.isNullOrBlank()) {
@@ -829,7 +795,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                                     runOnUiThread { webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.showToast('QR Already Claimed or Invalid.');", null) }
                                 }
                             }
-                        } catch(e: Exception) {
+                        } catch (e: Exception) {
                             processingQrs.remove(url)
                             runOnUiThread { webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.showToast('Network error claiming card.');", null) }
                         }
@@ -840,30 +806,73 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
             processingQrs.remove(url)
         }
     }
-    private val processingTargets = mutableSetOf<String>()
 
-    private fun handleGenericTarget(rawValue: String) {
-        if (!processingTargets.add(rawValue)) return
-        if (shuttingDown || bgExecutor.isShutdown) { processingTargets.remove(rawValue); return }
+    private fun handleGenericRecognition(recResult: RecognitionResult) {
+        val targetId = recResult.targetId
+        val now = System.currentTimeMillis()
+
+        val dismissed = dismissedTargetId
+        if (dismissed != null) {
+            if (targetId == dismissed) {
+                if (now - lastDismissedSeenMs < 1500L) {
+                    lastDismissedSeenMs = now
+                    return
+                } else {
+                    dismissedTargetId = null
+                }
+            } else {
+                dismissedTargetId = null
+            }
+        }
+
+        if (floatingExperience.isShowing) {
+            if (floatingExperience.currentTargetId == targetId) {
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) {
+                        floatingExperience.updateTargetGeometry(recResult.geometry)
+                    }
+                }
+            }
+            return
+        }
+
+        val cached = experienceResolver.getCached(targetId)
+        if (cached != null) {
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    SoundManager.playScan()
+                    floatingExperience.show(cached, targetId)
+                    floatingExperience.updateTargetGeometry(recResult.geometry)
+                }
+            }
+            return
+        }
+
+        if (!processingTargets.add(targetId)) return
+        if (shuttingDown || bgExecutor.isShutdown) {
+            processingTargets.remove(targetId)
+            return
+        }
 
         try {
             bgExecutor.execute {
                 try {
-                    val experience = experienceResolver.resolve(rawValue)
+                    val experience = experienceResolver.resolve(targetId)
                     runOnUiThread {
                         if (!isFinishing && !isDestroyed) {
-                            floatingExperience.show(experience)
+                            SoundManager.playScan()
+                            floatingExperience.show(experience, targetId)
+                            floatingExperience.updateTargetGeometry(recResult.geometry)
                         }
                     }
                 } finally {
-                    processingTargets.remove(rawValue)
+                    processingTargets.remove(targetId)
                 }
             }
         } catch (_: RejectedExecutionException) {
-            processingTargets.remove(rawValue)
+            processingTargets.remove(targetId)
         }
     }
-
 
     private fun sendCornersToJs(corners: FloatArray, fw: Int, fh: Int) {
         val vw = previewView.width.toFloat()
@@ -882,30 +891,19 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
         }
         webView.evaluateJavascript("window.CVOverlay && window.CVOverlay.update($arr);", null)
     }
+
     private fun getOfflineAnimation(cardId: String, animName: String): String? {
         val diskFile = File(animCacheDir, "$cardId-$animName.json")
-
-        // 1. Try session/disk cache first
         if (diskFile.exists() && diskFile.length() > 0L) {
             try {
                 val bundle = diskFile.readText()
-
-                if (bundle.isNotBlank() && isValidAnimationBundle(bundle)) {
-                    return bundle
-                }
-            } catch (_: Exception) {
-            }
+                if (bundle.isNotBlank() && isValidAnimationBundle(bundle)) return bundle
+            } catch (_: Exception) {}
         }
 
-        // 2. Fall back to permanent VaultStore
         return try {
             val stored = vaultStore.getAnimation(cardId, animName)
-
-            if (!stored.isNullOrBlank() && isValidAnimationBundle(stored)) {
-                stored
-            } else {
-                null
-            }
+            if (!stored.isNullOrBlank() && isValidAnimationBundle(stored)) stored else null
         } catch (_: Exception) {
             null
         }
@@ -933,14 +931,8 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                 }
 
                 val cardDir = File(File(filesDir, "vault"), id).apply { mkdirs() }
-
-                if (reference.isNotEmpty()) {
-                    File(cardDir, "reference.jpg").writeBytes(reference)
-                }
-
-                if (render.isNotEmpty()) {
-                    File(cardDir, "render.png").writeBytes(render)
-                }
+                if (reference.isNotEmpty()) File(cardDir, "reference.jpg").writeBytes(reference)
+                if (render.isNotEmpty()) File(cardDir, "render.png").writeBytes(render)
 
                 val json = JSONObject().apply {
                     put("id", id)
@@ -948,22 +940,13 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                     put("rarity", meta?.rarity ?: "")
                     put("description", meta?.description ?: "")
                 }
-
                 File(cardDir, "meta.json").writeText(json.toString())
 
                 for (name in cat.fetchAnimationNames(id)) {
                     val bundle = getOfflineAnimation(id, name)
                         ?: cat.fetchAnimationBundle(id, name)
                         ?: continue
-
-                    if (!isValidAnimationBundle(bundle)) {
-                        Log.w(
-                            "CardVision",
-                            "Skipping invalid animation bundle for $id/$name"
-                        )
-                        continue
-                    }
-
+                    if (!isValidAnimationBundle(bundle)) continue
                     File(animCacheDir, "$id-$name.json").writeText(bundle)
                     vaultStore.saveAnimation(id, name, bundle)
                 }
@@ -986,9 +969,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
 
     override fun onGetVaultCards(): String {
         val ids = LinkedHashSet<String>()
-
         ids.addAll(vault.allUnlockedIds())
-
         val seenIds = getSeenCardIds()
         ids.addAll(seenIds)
 
@@ -1032,6 +1013,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
         if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) trimmed = "http://$trimmed"
         serverUrl = trimmed
         prefs.edit().putString("serverUrl", trimmed).apply()
+        experienceResolver.clearCache()
         if (!shuttingDown && !bgExecutor.isShutdown) {
             try {
                 bgExecutor.execute { syncCatalog() }
@@ -1103,7 +1085,9 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                             val matrix: BitMatrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)
                             val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
                             for (x in 0 until size) {
-                                for (y in 0 until size) { bmp.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE) }
+                                for (y in 0 until size) {
+                                    bmp.setPixel(x, y, if (matrix[x, y]) Color.BLACK else Color.WHITE)
+                                }
                             }
                             val out = ByteArrayOutputStream()
                             bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
@@ -1145,7 +1129,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                             runOnUiThread { webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.showToast('Too late! Card was already claimed.');", null) }
                         }
                     }
-                } catch(e: Exception) {
+                } catch (e: Exception) {
                     runOnUiThread { webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.showToast('Network error cancelling trade.');", null) }
                 }
             }
@@ -1156,13 +1140,10 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
 
     override fun onGetAnimation(cardId: String, animName: String): String? {
         val file = File(animCacheDir, "$cardId-$animName.json")
-
         if (file.exists() && file.length() > 0L) {
             try {
                 val bundle = file.readText()
-                if (bundle.isNotBlank() && isValidAnimationBundle(bundle)) {
-                    return bundle
-                }
+                if (bundle.isNotBlank() && isValidAnimationBundle(bundle)) return bundle
             } catch (_: Exception) {}
         }
 
@@ -1195,10 +1176,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                         if (!response.isSuccessful) {
                             serverStatus = "offline"
                             runOnUiThread {
-                                webView.evaluateJavascript(
-                                    "window.CardVision && window.CardVision._connResult(false, 'Failed')",
-                                    null
-                                )
+                                webView.evaluateJavascript("window.CardVision && window.CardVision._connResult(false, 'Failed')", null)
                             }
                             return@execute
                         }
@@ -1206,21 +1184,15 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
                         serverStatus = "online"
                         val body = response.body?.string().orEmpty()
                         val count = try { JSONArray(body).length() } catch (_: Exception) { 0 }
-                        val msg = JSONObject.quote("Connected â€” $count card${if (count == 1) "" else "s"} on server")
+                        val msg = JSONObject.quote("Connected - $count card${if (count == 1) "" else "s"} on server")
                         runOnUiThread {
-                            webView.evaluateJavascript(
-                                "window.CardVision && window.CardVision._connResult(true, $msg)",
-                                null
-                            )
+                            webView.evaluateJavascript("window.CardVision && window.CardVision._connResult(true, $msg)", null)
                         }
                     }
                 } catch (_: Exception) {
                     serverStatus = "offline"
                     runOnUiThread {
-                        webView.evaluateJavascript(
-                            "window.CardVision && window.CardVision._connResult(false, 'Failed')",
-                            null
-                        )
+                        webView.evaluateJavascript("window.CardVision && window.CardVision._connResult(false, 'Failed')", null)
                     }
                 }
             }
@@ -1241,10 +1213,7 @@ class MainActivity : AppCompatActivity(), WebAppBridge.Host {
         }
 
         runOnUiThread {
-            webView.evaluateJavascript(
-                "if(window.CardVisionUI) window.CardVisionUI.refreshVault();",
-                null
-            )
+            webView.evaluateJavascript("if(window.CardVisionUI) window.CardVisionUI.refreshVault();", null)
         }
     }
 
